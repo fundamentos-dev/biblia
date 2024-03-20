@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  app:
+    container_name: "biblia_filipelopesme_fastapi"
+    env_file:
+      - .env
+    build: .
+    volumes:
+      - .:/src
+    ports:
+      - ${APP_PORT}:8000
+    extra_hosts:
+      - "database:192.168.100.22"
+    

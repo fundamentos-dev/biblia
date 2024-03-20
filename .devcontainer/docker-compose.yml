@@ -27,7 +27,7 @@ services:
       - ../data/biblia:/initial_data
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_DB: jogodabiblia
+      POSTGRES_DB: biblia
       POSTGRES_PASSWORD: postgres
 
     # Add "forwardPorts": ["5432"] to **devcontainer.json** to forward PostgreSQL locally.

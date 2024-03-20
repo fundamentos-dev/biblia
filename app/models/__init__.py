@@ -1,10 +1,6 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlmodel import Field, Session, SQLModel, create_engine
-
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/jogodabiblia"
+from sqlmodel import create_engine
+import os
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL
+    os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@db:5432/biblia")
 )

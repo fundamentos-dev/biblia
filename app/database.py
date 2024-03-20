@@ -1,4 +1,8 @@
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import create_engine
+import os
 
-DATABASE_URL = "postgresql://postgres:postgres@db:5432/jogodabiblia"
-engine = create_engine(DATABASE_URL, echo=True)
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@db:5432/biblia")
+
+engine = create_engine(DATABASE_URL)
+
+print(f'Conectado a {DATABASE_URL}')
