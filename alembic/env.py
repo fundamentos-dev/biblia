@@ -16,12 +16,6 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-import sys
-import pathlib
-path = str(pathlib.Path(__file__).parent.absolute()).split('/')
-path.pop()
-path = '/'.join(path)
-sys.path.append(path)
 from app.models import Biblia
 from sqlmodel import SQLModel
 print(SQLModel.metadata.tables.keys())
@@ -32,7 +26,18 @@ target_metadata = SQLModel.metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+import re
+import os
 
+url_tokens = {
+    "DB_USER": os.getenv("DB_USER", "postgres"),
+    "DB_PASS": os.getenv("DB_PASS", "postgres"),
+    "DB_HOST": os.getenv("DB_HOST", "db"),
+    "DB_NAME": os.getenv("DB_NAME", "biblia")
+}
+
+url = config.get_main_option("sqlalchemy.url")
+url = re.sub(r"\${(.+?)}", lambda m: url_tokens[m.group(1)], url)
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -46,7 +51,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -65,15 +70,15 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    from sqlalchemy import create_engine
+
+    connectable = create_engine(url)
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True
         )
 
         with context.begin_transaction():

@@ -10,5 +10,5 @@ services:
     ports:
       - ${APP_PORT}:8000
     extra_hosts:
-      - "database:192.168.100.22"
+      - "host.docker.internal:host-gateway"
     
