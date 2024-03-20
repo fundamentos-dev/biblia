@@ -5,4 +5,4 @@ DATABASE_URL = f'postgres://{os.environ.get("DB_USER", "postgres")}:{os.environ.
 
 engine = create_engine(DATABASE_URL)
 
-print(f'Conectado a {DATABASE_URL}')
+print(f'Conectado a {DATABASE_URL}!')

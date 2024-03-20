@@ -18,7 +18,6 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from app.models import Biblia
 from sqlmodel import SQLModel
-print(SQLModel.metadata.tables.keys())
 target_metadata = SQLModel.metadata
 
 

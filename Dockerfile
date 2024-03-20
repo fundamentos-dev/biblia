@@ -8,6 +8,9 @@ WORKDIR /src
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
+RUN apt-get update
+RUN apt-get install postgresql-client
+
 COPY . .
 
 EXPOSE 8000
