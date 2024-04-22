@@ -5,6 +5,7 @@ services:
     env_file:
       - .env
     build: .
+    restart: always
     volumes:
       - .:/src
       - ./data/biblia:/initial_data
