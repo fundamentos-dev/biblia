@@ -1,5 +1,14 @@
-version: "3.8"
 services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+      - ./db-entrypoint:/docker-entrypoint-initdb.d
   app:
     container_name: "biblia_filipelopesme_fastapi"
     env_file:
@@ -11,6 +20,6 @@ services:
       - ./data/biblia:/initial_data
     ports:
       - ${APP_PORT}:8000
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      - db
     

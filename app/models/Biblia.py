@@ -28,8 +28,7 @@ class Versiculo(SQLModel, table=True):
     versao_id: int = Field(foreign_key="versao.id")
 
     def __str__(self):
-        return f'v{self.numero}:{self.numero}'
-        
+        return f"v{self.numero}:{self.numero}"
 
 
 class Versao(SQLModel, table=True):
