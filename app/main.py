@@ -29,8 +29,6 @@ Bíblia Self-Hosted em português com intenção de uso doméstico, inicialmente
     openapi_tags=tags_metadata
 )
 
-
-
 v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(geral.router)
 v1_router.include_router(biblia.router)

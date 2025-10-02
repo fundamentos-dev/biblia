@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter
 import re
 
-from app.models.Biblia import Versao, Livro, Versiculo
+from app.models.Biblia import Versao, Livro, Versiculo, LivroCapituloNumeroVersiculos
 from app.schemas.biblia import VersiculoSchema
 from sqlmodel import Session, select
 from app.database import engine
@@ -106,3 +106,27 @@ async def captura_versiculos_biblia_por_busca(
         lista_versiculos_individuais.append(r)
 
     return lista_versiculos_individuais
+
+@router.get("/biblia/books")
+async def get_all_books() -> list[Livro]:
+    with Session(engine) as session:
+        stmt = select(Livro)
+        result = session.exec(stmt).all()
+    return result
+
+@router.get("/biblia/book/{book_id}/chapters")
+async def get_number_of_chapters(book_id: int) -> int:
+    with Session(engine) as session:
+        stmt = select(LivroCapituloNumeroVersiculos).where(LivroCapituloNumeroVersiculos.livro_id == book_id)
+        result = session.exec(stmt).all()
+    return len(result)
+
+@router.get("/biblia/book/{book_id}/chapter/{chapter_number}/verses")
+async def get_number_of_verses(book_id: int, chapter_number: int) -> int:
+    with Session(engine) as session:
+        stmt = select(LivroCapituloNumeroVersiculos).where(
+            LivroCapituloNumeroVersiculos.livro_id == book_id,
+            LivroCapituloNumeroVersiculos.capitulo == chapter_number
+        )
+        result = session.exec(stmt).first()
+    return result.total_versiculos if result else 0
