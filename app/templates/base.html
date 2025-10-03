@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR" x-data="themeManager" :class="{ 'dark': isDark }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Bíblia Terminal{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'mono': ['Fira Code', 'Courier New', 'monospace'],
+                    },
+                    animation: {
+                        'cursor-blink': 'cursor-blink 1s infinite',
+                    },
+                    keyframes: {
+                        'cursor-blink': {
+                            '0%, 50%': { opacity: '1' },
+                            '51%, 100%': { opacity: '0' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        [x-cloak] { display: none !important; }
+        
+        /* Terminal cursor effect */
+        .terminal-cursor::after {
+            content: '_';
+            animation: cursor-blink 1s infinite;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            @apply bg-gray-900 dark:bg-gray-950;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            @apply bg-green-600 dark:bg-green-500 rounded;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            @apply bg-green-500 dark:bg-green-400;
+        }
+        
+        .light ::-webkit-scrollbar-track {
+            @apply bg-gray-100;
+        }
+        
+        .light ::-webkit-scrollbar-thumb {
+            @apply bg-gray-600;
+        }
+        
+        .light ::-webkit-scrollbar-thumb:hover {
+            @apply bg-gray-700;
+        }
+    </style>
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="font-mono bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-green-400 min-h-screen transition-colors duration-300">
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('themeManager', () => ({
+                isDark: localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && true),
+                
+                init() {
+                    this.$watch('isDark', value => {
+                        localStorage.setItem('theme', value ? 'dark' : 'light');
+                    });
+                },
+                
+                toggleTheme() {
+                    this.isDark = !this.isDark;
+                }
+            }));
+        });
+    </script>
+    
+    {% block content %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}Bíblia Terminal - Busca{% endblock %}
+
+{% block content %}
+<div x-data="bibliaSearch" class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="border-b border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="text-gray-500 dark:text-gray-600">$</span>
+                    <h1 class="text-lg font-semibold text-gray-800 dark:text-green-400">biblia-terminal</h1>
+                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.1.0</span>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- API Docs Link -->
+                    <a href="/docs" 
+                       class="text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                        [API Docs]
+                    </a>
+                    
+                    <!-- Theme Toggle -->
+                    <button @click="toggleTheme()" 
+                            class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+                            :title="isDark ? 'Modo Claro' : 'Modo Escuro'">
+                        <svg x-show="!isDark" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                        </svg>
+                        <svg x-show="isDark" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 container mx-auto px-4 py-8">
+        <!-- Terminal Container -->
+        <div class="bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-300 dark:border-gray-800">
+            <!-- Terminal Header -->
+            <div class="flex items-center justify-between px-4 py-2 border-b border-gray-300 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 rounded-t-lg">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-600">
+                    bash - biblia@localhost
+                </div>
+            </div>
+
+            <!-- Terminal Body -->
+            <div class="p-4 min-h-[500px]">
+                <!-- Command Input -->
+                <div class="mb-4">
+                    <div class="flex items-start">
+                        <span class="text-gray-500 dark:text-green-500 mr-2">$</span>
+                        <div class="flex-1">
+                            <div class="flex items-center">
+                                <span class="text-gray-600 dark:text-gray-400 mr-2">biblia</span>
+                                <span class="text-gray-500 dark:text-gray-600 mr-2">search</span>
+                                <input 
+                                    type="text" 
+                                    x-model="searchQuery"
+                                    @input="handleInput"
+                                    @keydown.enter="executeSearch"
+                                    placeholder="João 3:16"
+                                    class="flex-1 bg-transparent outline-none text-gray-900 dark:text-green-400 placeholder-gray-400 dark:placeholder-gray-600"
+                                    :class="{ 'terminal-cursor': !searchQuery }"
+                                    autofocus
+                                >
+                            </div>
+                            
+                            <!-- Status Line -->
+                            <div class="mt-1 text-xs" x-show="statusMessage" x-transition>
+                                <span class="text-gray-500 dark:text-gray-600">[</span>
+                                <span :class="statusClass" x-text="statusMessage"></span>
+                                <span class="text-gray-500 dark:text-gray-600">]</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading Indicator -->
+                <div x-show="isLoading" x-cloak class="mb-4">
+                    <div class="flex items-center text-gray-600 dark:text-gray-400">
+                        <svg class="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Buscando...</span>
+                    </div>
+                </div>
+
+                <!-- Results -->
+                <div x-show="results.length > 0" x-cloak class="space-y-4">
+                    <div class="text-gray-500 dark:text-gray-600 text-sm mb-2">
+                        # Resultados encontrados: <span x-text="results.length"></span>
+                    </div>
+                    
+                    <template x-for="(verse, index) in results" :key="index">
+                        <div class="border-l-2 border-gray-300 dark:border-gray-700 pl-4 py-2 hover:border-green-500 dark:hover:border-green-400 transition-colors">
+                            <!-- Reference -->
+                            <div class="flex items-baseline mb-1">
+                                <span class="text-blue-600 dark:text-blue-400 font-semibold" x-text="verse.livro_abrev"></span>
+                                <span class="text-gray-500 dark:text-gray-600 mx-1">·</span>
+                                <span class="text-gray-700 dark:text-gray-300">
+                                    <span x-text="verse.capitulo"></span>:<span x-text="verse.versiculo"></span>
+                                </span>
+                                <span class="text-gray-400 dark:text-gray-600 text-xs ml-2">
+                                    [<span x-text="verse.versao_abrev"></span>]
+                                </span>
+                            </div>
+                            
+                            <!-- Text -->
+                            <div class="text-gray-800 dark:text-gray-200 leading-relaxed" x-text="verse.texto"></div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- No Results -->
+                <div x-show="hasSearched && results.length === 0 && !isLoading" x-cloak class="text-gray-500 dark:text-gray-600">
+                    <p>Nenhum versículo encontrado.</p>
+                </div>
+
+                <!-- Error Message -->
+                <div x-show="errorMessage" x-cloak class="mt-4 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded text-red-600 dark:text-red-400">
+                    <span class="font-semibold">Erro:</span>
+                    <span x-text="errorMessage"></span>
+                </div>
+
+                <!-- Help Text -->
+                <div x-show="!hasSearched" class="mt-8 text-gray-500 dark:text-gray-600 text-sm">
+                    <p class="mb-2"># Exemplos de busca:</p>
+                    <ul class="space-y-1 ml-4">
+                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16</code> - Versículo único</li>
+                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16-18</code> - Faixa de versículos</li>
+                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16,17,20</code> - Múltiplos versículos</li>
+                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16; Mateus 5:1</code> - Múltiplos livros</li>
+                        <li><code class="text-gray-700 dark:text-gray-400">1Pe 2:22</code> - Livros com números</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-4 text-center text-xs text-gray-500 dark:text-gray-600">
+        <p>Bíblia Self-Hosted Terminal © 2024</p>
+    </footer>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('bibliaSearch', () => ({
+        searchQuery: '',
+        results: [],
+        isLoading: false,
+        hasSearched: false,
+        errorMessage: '',
+        statusMessage: '',
+        statusClass: '',
+        debounceTimer: null,
+        
+        // Validação de formato de referência bíblica
+        validateQuery(query) {
+            if (!query.trim()) return false;
+            
+            // Pattern básico para validar referências bíblicas
+            const patterns = [
+                /^\w+\s+\d+:\d+/,  // Livro Capítulo:Versículo
+                /^\d\w+\s+\d+:\d+/, // 1Livro Capítulo:Versículo
+            ];
+            
+            return patterns.some(pattern => pattern.test(query.trim()));
+        },
+        
+        // Handler para input com debouncing
+        handleInput() {
+            clearTimeout(this.debounceTimer);
+            this.errorMessage = '';
+            
+            if (!this.searchQuery.trim()) {
+                this.statusMessage = '';
+                return;
+            }
+            
+            // Validação em tempo real
+            if (this.validateQuery(this.searchQuery)) {
+                this.statusMessage = 'Formato válido - pressione Enter ou aguarde';
+                this.statusClass = 'text-green-600 dark:text-green-500';
+                
+                // Debounce de 800ms para busca automática
+                this.debounceTimer = setTimeout(() => {
+                    this.executeSearch();
+                }, 800);
+            } else {
+                this.statusMessage = 'Formato: Livro Capítulo:Versículo';
+                this.statusClass = 'text-yellow-600 dark:text-yellow-500';
+            }
+        },
+        
+        // Executar busca
+        async executeSearch() {
+            if (!this.validateQuery(this.searchQuery)) {
+                this.errorMessage = 'Formato inválido. Use: Livro Capítulo:Versículo';
+                return;
+            }
+            
+            this.isLoading = true;
+            this.hasSearched = true;
+            this.errorMessage = '';
+            this.statusMessage = 'Buscando...';
+            this.statusClass = 'text-gray-600 dark:text-gray-400';
+            
+            try {
+                const response = await fetch(`/api/v1/biblia/verse?q=${encodeURIComponent(this.searchQuery)}&versao=ARA`);
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Erro ao buscar versículos');
+                }
+                
+                this.results = await response.json();
+                
+                if (this.results.length > 0) {
+                    this.statusMessage = `${this.results.length} versículo(s) encontrado(s)`;
+                    this.statusClass = 'text-green-600 dark:text-green-500';
+                } else {
+                    this.statusMessage = 'Nenhum resultado encontrado';
+                    this.statusClass = 'text-gray-600 dark:text-gray-400';
+                }
+                
+            } catch (error) {
+                this.errorMessage = error.message;
+                this.statusMessage = 'Erro na busca';
+                this.statusClass = 'text-red-600 dark:text-red-500';
+            } finally {
+                this.isLoading = false;
+                
+                // Limpar status após 3 segundos
+                setTimeout(() => {
+                    this.statusMessage = '';
+                }, 3000);
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}
