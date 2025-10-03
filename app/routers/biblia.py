@@ -47,6 +47,20 @@ class ReferenciaBiblica:
 
         with Session(engine) as session:
             try:
+                # Debug: verificar se versão e livro existem
+                versao_query = select(Versao).where(Versao.abrev == self.versao_abrev)
+                versao_result = session.exec(versao_query).first()
+                
+                livro_query = select(Livro).where(Livro.abrev == self.livro_abrev)
+                livro_result = session.exec(livro_query).first()
+                
+                if not versao_result:
+                    return f"Versão '{self.versao_abrev}' não encontrada no banco"
+                
+                if not livro_result:
+                    return f"Livro '{self.livro_abrev}' não encontrado no banco"
+                
+                # Busca principal
                 stmt = (
                     select(Versiculo, Versao, Livro)
                     .where(Versiculo.versao_id == Versao.id)
@@ -65,12 +79,10 @@ class ReferenciaBiblica:
                     self.texto = texto
                     return texto
                 else:
-                    error_msg = "Versículo não encontrado"
-                    self.texto = error_msg
-                    return error_msg
-            except Exception:
+                    return f"Versículo {self.livro_abrev} {self.capitulo}:{self.versiculo} não encontrado na versão {self.versao_abrev}"
+            except Exception as e:
                 error_msg = (
-                    "Houve um erro ao recuperar esse versículo, talvez não exista."
+                    f"Erro ao recuperar versículo {self.livro_abrev} {self.capitulo}:{self.versiculo}: {str(e)}"
                 )
                 self.texto = error_msg
                 return error_msg
@@ -189,43 +201,10 @@ async def captura_versiculos_biblia_por_busca(
         lista_referencias = capturar_referencia_versiculos(referencia_biblica_string=q)
         lista_versiculos_individuais = []
 
-        # MOCK DATA - Dados de demonstração
-        mock_verses = {
-            ("João", 3, 16): "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.",
-            ("João", 3, 17): "Porque Deus enviou o seu Filho ao mundo não para que condenasse o mundo, mas para que o mundo fosse salvo por ele.",
-            ("João", 3, 18): "Quem nele crê não é condenado; mas quem não crê já está condenado, porquanto não crê no nome do unigênito Filho de Deus.",
-            ("Gênesis", 1, 1): "No princípio, criou Deus os céus e a terra.",
-            ("Gênesis", 1, 2): "E a terra era sem forma e vazia; e havia trevas sobre a face do abismo; e o Espírito de Deus se movia sobre a face das águas.",
-            ("Mateus", 5, 1): "E Jesus, vendo a multidão, subiu a um monte, e, assentando-se, aproximaram-se dele os seus discípulos.",
-            ("Mateus", 5, 2): "E, abrindo a boca, os ensinava, dizendo:",
-            ("Mateus", 5, 3): "Bem-aventurados os pobres de espírito, porque deles é o Reino dos céus.",
-            ("1Pedro", 2, 22): "O qual não cometeu pecado, nem na sua boca se achou engano.",
-            ("1Pedro", 2, 23): "O qual, quando o injuriavam, não injuriava e, quando padecia, não ameaçava, mas entregava-se àquele que julga justamente.",
-            ("1Pedro", 2, 24): "Levando ele mesmo em seu corpo os nossos pecados sobre o madeiro, para que, mortos para os pecados, pudéssemos viver para a justiça; e pelas suas feridas fostes sarados.",
-            ("Salmos", 23, 1): "O SENHOR é o meu pastor; nada me faltará.",
-            ("Salmos", 23, 2): "Deitar-me faz em verdes pastos, guia-me mansamente a águas tranquilas.",
-            ("Salmos", 23, 3): "Refrigera a minha alma; guia-me pelas veredas da justiça por amor do seu nome.",
-        }
-
-        # Mapeamento de abreviações
-        book_mapping = {
-            "João": "João", "Jo": "João", 
-            "Gênesis": "Gênesis", "Gn": "Gênesis", "Gen": "Gênesis",
-            "Mateus": "Mateus", "Mt": "Mateus", "Mat": "Mateus",
-            "1Pedro": "1Pedro", "1Pe": "1Pedro", "1Pd": "1Pedro",
-            "Salmos": "Salmos", "Sl": "Salmos", "Sal": "Salmos",
-        }
-
         for referencia in lista_referencias:
-            # Definir versão e buscar texto no banco
+            # Definir versão e buscar texto no banco de dados
             referencia.versao_abrev = versao
-            
-            # Tentar encontrar o livro completo
-            full_book = book_mapping.get(referencia.livro_abrev, referencia.livro_abrev)
-            
-            # Buscar no mock data
-            mock_key = (full_book, referencia.capitulo, referencia.versiculo)
-            texto = mock_verses.get(mock_key, f"Versículo {referencia.livro_abrev} {referencia.capitulo}:{referencia.versiculo} - demonstração")
+            texto = referencia.capturar_texto_no_banco_de_dados()
 
             # Converter para schema de retorno
             versiculo_schema = VersiculoSchema(
