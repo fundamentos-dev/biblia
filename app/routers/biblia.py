@@ -1,12 +1,13 @@
 import re
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import Session, select
 
 from app.database import engine
 from app.models.Biblia import Livro, LivroCapituloNumeroVersiculos, Versao, Versiculo
 from app.schemas.biblia import VersiculoSchema
+from app.semantic_search import semantic_search_service
 
 
 router = APIRouter(tags=["biblia"])
@@ -181,21 +182,56 @@ def capturar_referencia_versiculos(
 
 @router.get("/biblia/verse")
 async def captura_versiculos_biblia_por_busca(
-    q: Annotated[str, "Query de busca ex.: 1Pe 2:22"], versao: str = "ARA"
+    q: Annotated[str, "Query de busca ex.: 1Pe 2:22 ou texto livre para busca semântica"],
+    versao: str = "ARA",
+    ss: bool = Query(False, description="Ativar busca semântica")
 ) -> list[VersiculoSchema]:
     """
-    Busca versículos bíblicos baseado em referências textuais.
+    Busca versículos bíblicos baseado em referências textuais ou busca semântica.
 
     Args:
-        q: String com referências bíblicas (ex: "João 3:16", "1Pe 2:22-24")
+        q: String com referências bíblicas (ex: "João 3:16") ou texto livre para busca semântica
         versao: Versão da bíblia (padrão: ARA)
+        ss: Ativar busca semântica (padrão: False)
 
     Returns:
         list[VersiculoSchema]: Lista de versículos encontrados
 
     Raises:
-        HTTPException: Se o formato da query for inválido
+        HTTPException: Se o formato da query for inválido ou erro na busca
     """
+    # Se ss=true, fazer busca semântica
+    if ss:
+        try:
+            # Realizar busca semântica
+            results = await semantic_search_service.search(
+                query=q,
+                limit=5,
+                versao_abrev=versao
+            )
+            
+            # Ordenar por score (maior primeiro) e converter para VersiculoSchema
+            results = sorted(results, key=lambda x: x.get("score", 0), reverse=True)
+            lista_versiculos = []
+            for result in results:
+                versiculo_schema = VersiculoSchema(
+                    versao_abrev=result.get("versao_abrev", versao),
+                    livro_abrev=result.get("livro_abrev", ""),
+                    capitulo=result.get("capitulo", 0),
+                    versiculo=result.get("numero", 0),
+                    texto=result.get("text", ""),
+                )
+                lista_versiculos.append(versiculo_schema)
+            
+            return lista_versiculos
+            
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erro na busca semântica: {str(e)}"
+            )
+    
+    # Busca tradicional por referência
     try:
         # Captura todas as referências individuais parseadas da query
         lista_referencias = capturar_referencia_versiculos(referencia_biblica_string=q)
@@ -234,7 +270,7 @@ async def get_all_books() -> list[Livro]:
     """
     try:
         with Session(engine) as session:
-            stmt = select(Livro).order_by(Livro.posicao)
+            stmt = select(Livro)
             result = session.exec(stmt).all()
         return list(result)
     except Exception:

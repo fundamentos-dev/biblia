@@ -29,11 +29,18 @@ services:
       - db-bible
     networks:
       - bible-network
+      - ollama
+      - qdrant
 
 networks:
   bible-network:
     name: "bible-net"
     driver: bridge
   cloudbeaver:
+    external: true
+  ollama:
+    external: true
+  qdrant:
+    name: "qdrant_default"
     external: true
     
