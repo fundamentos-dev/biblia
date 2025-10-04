@@ -21,3 +21,35 @@
 - Models in `app/models/`, Routers in `app/routers/`, Schemas in `app/schemas/`
 - Database connection in `app/database.py`, main FastAPI app in `app/main.py`
 - Use relative imports within app module (`.routers`, `.models`, `.schemas`)
+
+## IMPORTANT: Data Management Guidelines
+
+### Database Usage
+- **NEVER CREATE MOCK DATA**: Always use real data from the PostgreSQL database
+- **Read-only operations**: This project uses a pre-populated database with biblical data
+- **Data location**: Biblical data is stored in PostgreSQL tables (livro, versiculo, versao, etc.)
+- **CSV files**: Located in `data/biblia/` are for initial database seeding only, not for runtime use
+
+### Working with Biblical Data
+- **Fetching verses**: Use SQLModel queries with proper joins between `Versiculo`, `Livro`, and `Versao` tables
+- **Example pattern for reading data**:
+  ```python
+  with Session(engine) as session:
+      stmt = (
+          select(Versiculo, Versao, Livro)
+          .where(Versiculo.versao_id == Versao.id)
+          .where(Versiculo.livro_id == Livro.id)
+          .where(Versao.abrev == versao_abrev)
+          .where(Livro.abrev == livro_abrev)
+          .where(Versiculo.capitulo == capitulo)
+          .where(Versiculo.numero == numero)
+      )
+      result = session.exec(stmt).first()
+  ```
+- **Error handling**: Return meaningful Portuguese error messages when data is not found
+- **No hardcoded data**: Never hardcode biblical texts or create mock dictionaries with verse data
+
+### Testing
+- **Unit tests**: Can use mocks for testing purposes only (in `tests/` directory)
+- **Integration tests**: Should connect to test database when available
+- **Never use mock data in production code** (anything in `app/` directory)

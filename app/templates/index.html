@@ -97,33 +97,50 @@
                 </div>
 
                 <!-- Results -->
-                <div x-show="results.length > 0" x-cloak class="space-y-4">
+                <div x-show="groupedResults.length > 0" x-cloak class="space-y-4">
                     <div class="text-gray-500 dark:text-gray-600 text-sm mb-2">
-                        # Resultados encontrados: <span x-text="results.length"></span>
+                        # Resultados encontrados: <span x-text="totalVerses"></span> versículo<span x-text="totalVerses !== 1 ? 's' : ''"></span>
                     </div>
                     
-                    <template x-for="(verse, index) in results" :key="index">
-                        <div class="border-l-2 border-gray-300 dark:border-gray-700 pl-4 py-2 hover:border-green-500 dark:hover:border-green-400 transition-colors">
+                    <template x-for="(group, index) in groupedResults" :key="index">
+                        <div @click="copyToClipboard(group)"
+                             class="border-l-2 border-gray-300 dark:border-gray-700 pl-4 py-2 hover:border-green-500 dark:hover:border-green-400 transition-colors cursor-pointer relative group">
+                            
+                            <!-- Copy indicator -->
+                            <div x-show="copiedIndex === index" 
+                                 x-transition:enter="transition ease-out duration-200"
+                                 x-transition:enter-start="opacity-0 transform translate-y-2"
+                                 x-transition:enter-end="opacity-100 transform translate-y-0"
+                                 x-transition:leave="transition ease-in duration-200"
+                                 x-transition:leave-start="opacity-100"
+                                 x-transition:leave-end="opacity-0"
+                                 class="absolute right-2 top-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                                Copiado!
+                            </div>
+                            
+                            <!-- Copy hint -->
+                            <div class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-600 text-xs">
+                                Clique para copiar
+                            </div>
+                            
                             <!-- Reference -->
                             <div class="flex items-baseline mb-1">
-                                <span class="text-blue-600 dark:text-blue-400 font-semibold" x-text="verse.livro_abrev"></span>
+                                <span class="text-blue-600 dark:text-blue-400 font-semibold" x-text="group.livro"></span>
                                 <span class="text-gray-500 dark:text-gray-600 mx-1">·</span>
-                                <span class="text-gray-700 dark:text-gray-300">
-                                    <span x-text="verse.capitulo"></span>:<span x-text="verse.versiculo"></span>
-                                </span>
+                                <span class="text-gray-700 dark:text-gray-300" x-text="group.reference"></span>
                                 <span class="text-gray-400 dark:text-gray-600 text-xs ml-2">
-                                    [<span x-text="verse.versao_abrev"></span>]
+                                    [<span x-text="group.versao"></span>]
                                 </span>
                             </div>
                             
                             <!-- Text -->
-                            <div class="text-gray-800 dark:text-gray-200 leading-relaxed" x-text="verse.texto"></div>
+                            <div class="text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap" x-text="group.text"></div>
                         </div>
                     </template>
                 </div>
 
                 <!-- No Results -->
-                <div x-show="hasSearched && results.length === 0 && !isLoading" x-cloak class="text-gray-500 dark:text-gray-600">
+                <div x-show="hasSearched && groupedResults.length === 0 && !isLoading" x-cloak class="text-gray-500 dark:text-gray-600">
                     <p>Nenhum versículo encontrado.</p>
                 </div>
 
@@ -159,12 +176,15 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('bibliaSearch', () => ({
         searchQuery: '',
         results: [],
+        groupedResults: [],
+        totalVerses: 0,
         isLoading: false,
         hasSearched: false,
         errorMessage: '',
         statusMessage: '',
         statusClass: '',
         debounceTimer: null,
+        copiedIndex: null,
         
         // Validação de formato de referência bíblica
         validateQuery(query) {
@@ -204,6 +224,152 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
+        // Agrupar versículos contíguos
+        groupVerses(verses) {
+            if (!verses || verses.length === 0) return [];
+            
+            const groups = [];
+            let currentGroup = null;
+            
+            // Primeiro, separar por ponto e vírgula na query original
+            const queryParts = this.searchQuery.split(';').map(p => p.trim());
+            const groupBoundaries = new Set();
+            
+            // Marcar onde cada parte da query começa
+            let verseIndex = 0;
+            for (const part of queryParts) {
+                groupBoundaries.add(verseIndex);
+                // Contar quantos versículos essa parte deve ter
+                const matches = part.match(/\d+/g);
+                if (matches && matches.length >= 2) {
+                    // Estimar baseado nos números encontrados
+                    verseIndex += verses.filter(v => 
+                        part.includes(v.livro_abrev) || 
+                        part.toLowerCase().includes(v.livro_abrev.toLowerCase())
+                    ).length;
+                }
+            }
+            
+            verses.forEach((verse, index) => {
+                const shouldStartNewGroup = 
+                    !currentGroup || 
+                    groupBoundaries.has(index) ||
+                    currentGroup.livro !== verse.livro_abrev ||
+                    currentGroup.capitulo !== verse.capitulo ||
+                    (currentGroup.verses.length > 0 && 
+                     verse.versiculo !== currentGroup.verses[currentGroup.verses.length - 1].versiculo + 1);
+                
+                if (shouldStartNewGroup) {
+                    if (currentGroup) {
+                        groups.push(this.formatGroup(currentGroup));
+                    }
+                    currentGroup = {
+                        livro: verse.livro_abrev,
+                        capitulo: verse.capitulo,
+                        versao: verse.versao_abrev,
+                        verses: [verse]
+                    };
+                } else {
+                    currentGroup.verses.push(verse);
+                }
+            });
+            
+            if (currentGroup) {
+                groups.push(this.formatGroup(currentGroup));
+            }
+            
+            return groups;
+        },
+        
+        // Formatar grupo de versículos
+        formatGroup(group) {
+            const verses = group.verses;
+            let reference = `${group.capitulo}:`;
+            let text = '';
+            
+            // Construir referência
+            if (verses.length === 1) {
+                reference += verses[0].versiculo;
+            } else {
+                // Verificar se são contíguos
+                let isContiguous = true;
+                let gaps = [];
+                
+                for (let i = 1; i < verses.length; i++) {
+                    if (verses[i].versiculo !== verses[i-1].versiculo + 1) {
+                        isContiguous = false;
+                        gaps.push(i);
+                    }
+                }
+                
+                if (isContiguous) {
+                    reference += `${verses[0].versiculo}-${verses[verses.length - 1].versiculo}`;
+                } else {
+                    // Versículos não contíguos
+                    let parts = [];
+                    let start = 0;
+                    
+                    for (let gapIndex of gaps) {
+                        if (start === gapIndex - 1) {
+                            parts.push(verses[start].versiculo.toString());
+                        } else {
+                            parts.push(`${verses[start].versiculo}-${verses[gapIndex - 1].versiculo}`);
+                        }
+                        start = gapIndex;
+                    }
+                    
+                    // Adicionar última parte
+                    if (start === verses.length - 1) {
+                        parts.push(verses[start].versiculo.toString());
+                    } else {
+                        parts.push(`${verses[start].versiculo}-${verses[verses.length - 1].versiculo}`);
+                    }
+                    
+                    reference += parts.join(',');
+                }
+            }
+            
+            // Construir texto
+            for (let i = 0; i < verses.length; i++) {
+                if (i > 0) {
+                    // Verificar se há gap
+                    if (verses[i].versiculo !== verses[i-1].versiculo + 1) {
+                        text += ' [...] ';
+                    } else {
+                        text += ' ';
+                    }
+                }
+                text += `${verses[i].versiculo}. ${verses[i].texto}`;
+            }
+            
+            return {
+                livro: group.livro,
+                reference: reference,
+                versao: group.versao,
+                text: text,
+                fullReference: `${group.livro} ${reference}`
+            };
+        },
+        
+        // Copiar para clipboard
+        async copyToClipboard(group) {
+            const textToCopy = `${group.fullReference}\n${group.text}`;
+            
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                
+                // Mostrar indicador de copiado
+                const index = this.groupedResults.indexOf(group);
+                this.copiedIndex = index;
+                
+                setTimeout(() => {
+                    this.copiedIndex = null;
+                }, 2000);
+            } catch (err) {
+                console.error('Erro ao copiar:', err);
+            }
+        },
+        
         // Executar busca
         async executeSearch() {
             if (!this.validateQuery(this.searchQuery)) {
@@ -226,6 +392,8 @@ document.addEventListener('alpine:init', () => {
                 }
                 
                 this.results = await response.json();
+                this.totalVerses = this.results.length;
+                this.groupedResults = this.groupVerses(this.results);
                 
                 if (this.results.length > 0) {
                     this.statusMessage = `${this.results.length} versículo(s) encontrado(s)`;
@@ -233,12 +401,14 @@ document.addEventListener('alpine:init', () => {
                 } else {
                     this.statusMessage = 'Nenhum resultado encontrado';
                     this.statusClass = 'text-gray-600 dark:text-gray-400';
+                    this.groupedResults = [];
                 }
                 
             } catch (error) {
                 this.errorMessage = error.message;
                 this.statusMessage = 'Erro na busca';
                 this.statusClass = 'text-red-600 dark:text-red-500';
+                this.groupedResults = [];
             } finally {
                 this.isLoading = false;
                 

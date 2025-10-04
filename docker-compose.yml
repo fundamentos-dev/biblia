@@ -1,5 +1,5 @@
 services:
-  db:
+  db-bible:
     image: postgres:15-alpine
     restart: always
     environment:
@@ -9,6 +9,11 @@ services:
     volumes:
       - ./data/db:/var/lib/postgresql/data
       - ./db-entrypoint:/docker-entrypoint-initdb.d
+    ports:
+      - 55434:5432
+    networks:
+      - bible-network
+      - cloudbeaver
   app:
     container_name: "biblia_filipelopesme_fastapi"
     env_file:
@@ -21,5 +26,14 @@ services:
     ports:
       - ${APP_PORT}:8000
     depends_on:
-      - db
+      - db-bible
+    networks:
+      - bible-network
+
+networks:
+  bible-network:
+    name: "bible-net"
+    driver: bridge
+  cloudbeaver:
+    external: true
     
