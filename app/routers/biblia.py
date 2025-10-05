@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -11,6 +12,108 @@ from app.semantic_search import semantic_search_service
 
 
 router = APIRouter(tags=["biblia"])
+
+
+def normalizar_texto(texto: str) -> str:
+    """
+    Remove acentos e converte texto para minúsculas para comparação.
+    
+    Args:
+        texto: Texto para normalizar
+        
+    Returns:
+        Texto normalizado sem acentos e em minúsculas
+    """
+    texto_nfd = unicodedata.normalize('NFD', texto)
+    texto_sem_acentos = texto_nfd.encode('ascii', 'ignore').decode('ascii')
+    return texto_sem_acentos.lower().strip()
+
+
+def criar_mapeamento_livros() -> dict[str, str]:
+    """
+    Cria mapeamento de nomes normalizados para abreviações dos livros.
+    
+    Inclui tanto nomes completos quanto abreviações para máxima flexibilidade.
+    
+    Returns:
+        Dicionário com nome_normalizado -> abreviação
+    """
+    mapeamento = {}
+    
+    try:
+        with Session(engine) as session:
+            stmt = select(Livro)
+            livros = session.exec(stmt).all()
+            
+            for livro in livros:
+                # Mapear nome completo normalizado -> abreviação
+                nome_normalizado = normalizar_texto(livro.nome)
+                mapeamento[nome_normalizado] = livro.abrev
+                
+                # Mapear abreviação normalizada -> abreviação (para manter compatibilidade)
+                abrev_normalizada = normalizar_texto(livro.abrev)
+                mapeamento[abrev_normalizada] = livro.abrev
+                
+    except Exception as e:
+        # Se houver erro no banco, usar fallback com dados conhecidos
+        livros_fallback = [
+            ("Genesis", "Gn"), ("Exodo", "Ex"), ("Levitico", "Lv"), ("Numeros", "Nm"),
+            ("Deuteronomio", "Dt"), ("Josue", "Js"), ("Juizes", "Jz"), ("Rute", "Rt"),
+            ("I Samuel", "1Sm"), ("II Samuel", "2Sm"), ("I Reis", "1Rs"), ("II Reis", "2Rs"),
+            ("I Cronicas", "1Cr"), ("II Cronicas", "2Cr"), ("Esdras", "Ed"), ("Neemias", "Ne"),
+            ("Ester", "Et"), ("Jo", "Jo"), ("Salmos", "Sl"), ("Proverbios", "Pv"),
+            ("Eclesiastes", "Ec"), ("Cantico dos Canticos", "Ct"), ("Isaias", "Is"),
+            ("Jeremias", "Jr"), ("Lamentacoes Jeremias", "Lm"), ("Ezequiel", "Ez"),
+            ("Daniel", "Dn"), ("Oseias", "Os"), ("Joel", "Jl"), ("Amos", "Am"),
+            ("Obadias", "Ob"), ("Jonas", "Jn"), ("Miqueias", "Mq"), ("Naum", "Na"),
+            ("Habacuque", "Hc"), ("Sofonias", "Sf"), ("Ageu", "Ag"), ("Zacarias", "Zc"),
+            ("Malaquias", "Ml"), ("Mateus", "Mt"), ("Marcos", "Mc"), ("Lucas", "Lc"),
+            ("Joao", "Jo"), ("Atos", "At"), ("Romanos", "Rm"), ("I Corintios", "1Co"),
+            ("II Corintios", "2Co"), ("Galatas", "Gl"), ("Efesios", "Ef"), ("Filipenses", "Fp"),
+            ("Colossenses", "Cl"), ("I Tessalonicenses", "1Ts"), ("II Tessalonicenses", "2Ts"),
+            ("I Timoteo", "1Tm"), ("II Timoteo", "2Tm"), ("Tito", "Tt"), ("Filemom", "Fm"),
+            ("Hebreus", "Hb"), ("Tiago", "Tg"), ("I Pedro", "1Pe"), ("II Pedro", "2Pe"),
+            ("I Joao", "1Jo"), ("II Joao", "2Jo"), ("III Joao", "3Jo"), ("Judas", "Jd"),
+            ("Apocalipse", "Ap")
+        ]
+        
+        for nome, abrev in livros_fallback:
+            nome_normalizado = normalizar_texto(nome)
+            mapeamento[nome_normalizado] = abrev
+            abrev_normalizada = normalizar_texto(abrev)
+            mapeamento[abrev_normalizada] = abrev
+    
+    return mapeamento
+
+
+# Cache do mapeamento para evitar consultas desnecessárias ao banco
+_mapeamento_livros_cache: Optional[dict[str, str]] = None
+
+
+def obter_abreviacao_livro(nome_livro: str) -> str:
+    """
+    Obtém a abreviação do livro a partir do nome (com ou sem acentos).
+    
+    Args:
+        nome_livro: Nome do livro (pode ter acentos, maiúsculas/minúsculas)
+        
+    Returns:
+        Abreviação do livro
+        
+    Raises:
+        ValueError: Se o livro não for encontrado
+    """
+    global _mapeamento_livros_cache
+    
+    if _mapeamento_livros_cache is None:
+        _mapeamento_livros_cache = criar_mapeamento_livros()
+    
+    nome_normalizado = normalizar_texto(nome_livro)
+    
+    if nome_normalizado in _mapeamento_livros_cache:
+        return _mapeamento_livros_cache[nome_normalizado]
+    
+    raise ValueError(f"Livro não encontrado: {nome_livro}")
 
 
 class ReferenciaBiblica:
@@ -102,10 +205,17 @@ def capturar_referencia_versiculos(
     Parser de referências bíblicas que suporta múltiplos formatos.
 
     Formatos suportados:
-    - "João 3:16" - versículo único
+    - "João 3:16" ou "Joao 3:16" - versículo único (com ou sem acentos)
+    - "I Coríntios 13:4" ou "1 Corintios 13:4" - nomes completos
+    - "Jo 3:16" ou "1Co 13:4" - abreviações
     - "João 3:16-18" - faixa de versículos
     - "João 3:16,17,18" - múltiplos versículos
     - "João 3:16; Mateus 5:1" - múltiplos livros
+
+    O parser normaliza automaticamente acentos, permitindo entrada flexível:
+    - "Gênesis" = "Genesis"
+    - "Êxodo" = "Exodo"
+    - "Coríntios" = "Corintios"
 
     Args:
         referencia_biblica_string: String com referências no formato padrão
@@ -115,7 +225,7 @@ def capturar_referencia_versiculos(
         list[ReferenciaBiblica]: Lista de referências parseadas
 
     Raises:
-        ValueError: Se o formato da referência for inválido
+        ValueError: Se o formato da referência for inválido ou livro não encontrado
     """
     if lista_referencias is None:
         lista_referencias = []
@@ -129,12 +239,18 @@ def capturar_referencia_versiculos(
         # Normalizar espaçamento após vírgulas
         referencia = re.sub(r",\s*", ", ", referencia)
 
-        # Pattern: "Livro Capitulo:Versiculos"
-        match = re.match(r"^(\w+)\s+(\d+):(.*)$", referencia)
+        # Pattern: "Livro Capitulo:Versiculos" (aceita múltiplas palavras e acentos)
+        match = re.match(r"^([A-Za-z\s\u00C0-\u017F0-9]+)\s+(\d+):(.*)$", referencia)
         if not match:
             raise ValueError(f"Formato de referência bíblica inválido: {referencia}")
 
-        livro = match.group(1)
+        livro_nome = match.group(1).strip()
+        
+        # Resolver nome do livro para abreviação usando normalização
+        try:
+            livro = obter_abreviacao_livro(livro_nome)
+        except ValueError as e:
+            raise ValueError(f"Livro não encontrado: {livro_nome}") from e
         capitulo_str = match.group(2)
         versiculos_str = match.group(3)
 

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, APIRouter, Request
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -71,7 +71,7 @@ API para busca e navegação em textos bíblicos, com foco em uso doméstico e p
 - `João 3:16,17,20` - Múltiplos versículos
 - `João 3:16; Mateus 5:1` - Múltiplos livros
 """,
-    version="0.1.0",
+    version="0.2.0",
     openapi_tags=tags_metadata,
     lifespan=lifespan,
     contact={
@@ -124,7 +124,50 @@ async def api_info():
     """
     return {
         "name": "Bíblia Self-Hosted API",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "docs": "/docs",
         "openapi": "/openapi.json",
     }
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+async def robots_txt():
+    """
+    Robots.txt para controle de indexação de bots de busca.
+    """
+    content = """User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://biblia.filipelopes.me/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 1
+
+# Disallow admin/internal paths
+Disallow: /admin
+Disallow: /api/"""
+    return content
+
+
+@app.get("/sitemap.xml", response_class=Response, include_in_schema=False)
+async def sitemap_xml():
+    """
+    Sitemap XML para motores de busca.
+    """
+    content = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://biblia.filipelopes.me/</loc>
+        <lastmod>2024-01-01</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>1.0</priority>
+    </url>
+    <url>
+        <loc>https://biblia.filipelopes.me/docs</loc>
+        <lastmod>2024-01-01</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+</urlset>"""
+    return Response(content=content, media_type="application/xml")

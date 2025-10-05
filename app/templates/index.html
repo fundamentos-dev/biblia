@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Bíblia Terminal - Busca{% endblock %}
+{% block title %}Bíblia SH - Buscar Versículos da Bíblia{% endblock %}
+
+{% block description %}Busque versículos da Bíblia com interface terminal. Suporte a referências como João 3:16, busca semântica por temas como "amor de Deus", múltiplas versões bíblicas.{% endblock %}
+
+{% block keywords %}busca bíblica, versículos bíblia, João 3:16, estudo bíblico, busca semântica, terminal bíblico, API bíblia, referências bíblicas{% endblock %}
 
 {% block content %}
 <div x-data="bibliaSearch" class="min-h-screen flex flex-col">
@@ -9,9 +13,9 @@
         <div class="container mx-auto px-4 py-3">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2">
-                    <span class="text-gray-500 dark:text-gray-600">$</span>
-                    <h1 class="text-lg font-semibold text-gray-800 dark:text-green-400">biblia-terminal</h1>
-                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.1.0</span>
+                    <span class="text-gray-500 dark:text-gray-600" aria-hidden="true">$</span>
+                    <h1 class="text-lg font-semibold text-gray-800 dark:text-green-400">Bíblia SH</h1>
+                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.2.0</span>
                 </div>
                 
                 <div class="flex items-center space-x-4">
@@ -68,8 +72,8 @@
                                     x-model="searchQuery"
                                     @input="handleInput"
                                     @keydown.enter="executeSearch"
-                                    placeholder="João 3:16"
-                                    class="flex-1 bg-transparent outline-none text-gray-900 dark:text-green-400 placeholder-gray-400 dark:placeholder-gray-600"
+                                    placeholder="Mt 24:30"
+                                    class="flex-1 bg-transparent outline-none text-gray-900 dark:text-green-400 placeholder-gray-500 dark:placeholder-gray-700"
                                     :class="{ 'terminal-cursor': !searchQuery }"
                                     autofocus
                                 >
@@ -151,29 +155,39 @@
                 </div>
 
                 <!-- Help Text -->
-                <div x-show="!hasSearched" class="mt-8 text-gray-500 dark:text-gray-600 text-sm">
-                    <p class="mb-2"># Exemplos de busca:</p>
-                    <ul class="space-y-1 ml-4">
-                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16</code> - Versículo único</li>
-                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16-18</code> - Faixa de versículos</li>
-                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16,17,20</code> - Múltiplos versículos</li>
-                        <li><code class="text-gray-700 dark:text-gray-400">João 3:16; Mateus 5:1</code> - Múltiplos livros</li>
-                        <li><code class="text-gray-700 dark:text-gray-400">1Pe 2:22</code> - Livros com números</li>
-                    </ul>
-                    <p class="mt-3 mb-2"># Busca semântica (texto livre):</p>
-                    <ul class="space-y-1 ml-4">
-                        <li><code class="text-gray-700 dark:text-gray-400">amor de Deus</code> - Busca por conceito</li>
-                        <li><code class="text-gray-700 dark:text-gray-400">salvação pela graça</code> - Busca temática</li>
-                        <li><code class="text-gray-700 dark:text-gray-400">paz que excede entendimento</code> - Busca por frase</li>
-                    </ul>
+                <div x-show="!hasSearched" class="mt-8 text-gray-500 dark:text-gray-600 text-sm opacity-50">
+                    <section>
+                        <h2 class="mb-2 text-base font-semibold"># Como buscar versículos da Bíblia:</h2>
+                        <h3 class="mb-1 font-medium">Busca por referências bíblicas:</h3>
+                        <ul class="space-y-1 ml-4" role="list">
+                            <li><code class="text-gray-700 dark:text-gray-400">João 3:16</code> - Versículo único mais famoso da Bíblia</li>
+                            <li><code class="text-gray-700 dark:text-gray-400">João 3:16-18</code> - Sequência de versículos sobre salvação</li>
+                            <li><code class="text-gray-700 dark:text-gray-400">João 3:16,17,20</code> - Versículos específicos separados</li>
+                            <li><code class="text-gray-700 dark:text-gray-400">João 3:16; Mateus 5:1</code> - Múltiplos livros bíblicos</li>
+                            <li><code class="text-gray-700 dark:text-gray-400">1Pe 2:22</code> - Livros com numeração (Pedro, Coríntios, etc.)</li>
+                        </ul>
+                    </section>
+                    <section class="mt-3">
+                        <h3 class="mb-1 font-medium"># Busca semântica por temas:</h3>
+                        <ul class="space-y-1 ml-4" role="list">
+                            <li><code class="text-gray-700 dark:text-gray-400">amor de Deus</code> - Versículos sobre o amor divino</li>
+                            <li><code class="text-gray-700 dark:text-gray-400">salvação pela graça</code> - Textos sobre salvação e graça</li>
+                            <li><code class="text-gray-700 dark:text-gray-400">paz que excede entendimento</code> - Versículos sobre paz celestial</li>
+                            <li><code class="text-gray-700 dark:text-gray-400">fé esperança amor</code> - Textos sobre virtudes cristãs</li>
+                        </ul>
+                    </section>
                 </div>
             </div>
         </div>
     </main>
 
     <!-- Footer -->
-    <footer class="py-4 text-center text-xs text-gray-500 dark:text-gray-600">
-        <p>Bíblia Self-Hosted Terminal © 2024</p>
+    <footer class="py-4 text-center text-xs text-gray-500 dark:text-gray-600" role="contentinfo">
+        <p>Bíblia Self-Hosted Terminal © 2024 - Sistema open-source para estudo bíblico</p>
+        <p class="mt-1">
+            <a href="/docs" class="hover:text-blue-600 dark:hover:text-blue-400">Documentação da API</a> | 
+            <a href="https://github.com/user/biblia-self-hosted" class="hover:text-blue-600 dark:hover:text-blue-400">Código Fonte</a>
+        </p>
     </footer>
 </div>
 
@@ -196,10 +210,12 @@ document.addEventListener('alpine:init', () => {
         validateQuery(query) {
             if (!query.trim()) return false;
             
-            // Pattern básico para validar referências bíblicas
+            // Pattern melhorado para validar referências bíblicas
+            // Aceita acentos, múltiplas palavras, números romanos
             const patterns = [
-                /^\w+\s+\d+:\d+/,  // Livro Capítulo:Versículo
-                /^\d\w+\s+\d+:\d+/, // 1Livro Capítulo:Versículo
+                /^[A-Za-z\u00C0-\u017F\s0-9]+\s+\d+:\d+/,  // Nome completo com acentos
+                /^\d+\s*[A-Za-z\u00C0-\u017F]+\s+\d+:\d+/, // Número + nome (ex: "1 Coríntios")
+                /^I{1,3}\s+[A-Za-z\u00C0-\u017F]+\s+\d+:\d+/, // Romano + nome (ex: "II Pedro")
             ];
             
             return patterns.some(pattern => pattern.test(query.trim()));
