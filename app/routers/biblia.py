@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from app.database import engine
 from app.models.Biblia import Livro, LivroCapituloNumeroVersiculos, Versao, Versiculo
-from app.schemas.biblia import VersiculoSchema
+from app.schemas.biblia import VersiculoSchema, ListaLeituraResponse, ListaLeituraSchema
 from app.semantic_search import semantic_search_service
 
 

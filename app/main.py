@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .routers import geral, biblia
+from .routers import geral, biblia, listas_leitura
 
 # Configuração de templates
 BASE_DIR = Path(__file__).resolve().parent
@@ -29,6 +29,10 @@ tags_metadata = [
     {
         "name": "biblia",
         "description": "Endpoints principais: busca de versículos, livros e navegação bíblica",
+    },
+    {
+        "name": "listas-leitura",
+        "description": "Endpoints para gerenciar listas de leitura bíblica",
     },
 ]
 
@@ -94,6 +98,9 @@ app.add_middleware(
 v1_router = APIRouter(prefix="/api/v1", tags=["v1"])
 v1_router.include_router(geral.router)
 v1_router.include_router(biblia.router)
+v1_router.include_router(listas_leitura.router)
+
+
 
 app.include_router(v1_router)
 
