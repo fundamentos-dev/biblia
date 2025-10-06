@@ -152,7 +152,7 @@ class ReferenciaBiblica:
         with Session(engine) as session:
             try:
                 # Debug: verificar se versão e livro existem
-                versao_query = select(Versao).where(Versao.abrev == self.versao_abrev)
+                versao_query = select(Versao).where(Versao.abrev == self.versao_abrev).where(Versao.active == True)
                 versao_result = session.exec(versao_query).first()
                 
                 livro_query = select(Livro).where(Livro.abrev == self.livro_abrev)
@@ -170,6 +170,7 @@ class ReferenciaBiblica:
                     .where(Versiculo.versao_id == Versao.id)
                     .where(Versiculo.livro_id == Livro.id)
                     .where(Versao.abrev == self.versao_abrev)
+                    .where(Versao.active == True)
                     .where(Livro.abrev == self.livro_abrev)
                     .where(Versiculo.capitulo == self.capitulo)
                     .where(Versiculo.numero == self.versiculo)
