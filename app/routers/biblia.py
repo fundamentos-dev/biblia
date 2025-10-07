@@ -32,28 +32,32 @@ def normalizar_texto(texto: str) -> str:
 def criar_mapeamento_livros() -> dict[str, str]:
     """
     Cria mapeamento de nomes normalizados para abreviações dos livros.
-    
+
     Inclui tanto nomes completos quanto abreviações para máxima flexibilidade.
-    
+
     Returns:
         Dicionário com nome_normalizado -> abreviação
     """
     mapeamento = {}
-    
+
     try:
         with Session(engine) as session:
             stmt = select(Livro)
             livros = session.exec(stmt).all()
-            
+
             for livro in livros:
+                # Mapear abreviação exata -> abreviação
+                mapeamento[livro.abrev] = livro.abrev
+
                 # Mapear nome completo normalizado -> abreviação
                 nome_normalizado = normalizar_texto(livro.nome)
                 mapeamento[nome_normalizado] = livro.abrev
-                
+
                 # Mapear abreviação normalizada -> abreviação (para manter compatibilidade)
                 abrev_normalizada = normalizar_texto(livro.abrev)
-                mapeamento[abrev_normalizada] = livro.abrev
-                
+                if abrev_normalizada not in mapeamento:
+                    mapeamento[abrev_normalizada] = livro.abrev
+
     except Exception as e:
         # Se houver erro no banco, usar fallback com dados conhecidos
         livros_fallback = [
@@ -61,7 +65,7 @@ def criar_mapeamento_livros() -> dict[str, str]:
             ("Deuteronomio", "Dt"), ("Josue", "Js"), ("Juizes", "Jz"), ("Rute", "Rt"),
             ("I Samuel", "1Sm"), ("II Samuel", "2Sm"), ("I Reis", "1Rs"), ("II Reis", "2Rs"),
             ("I Cronicas", "1Cr"), ("II Cronicas", "2Cr"), ("Esdras", "Ed"), ("Neemias", "Ne"),
-            ("Ester", "Et"), ("Jo", "Jo"), ("Salmos", "Sl"), ("Proverbios", "Pv"),
+            ("Ester", "Et"), ("Jó", "Jó"), ("Salmos", "Sl"), ("Proverbios", "Pv"),
             ("Eclesiastes", "Ec"), ("Cantico dos Canticos", "Ct"), ("Isaias", "Is"),
             ("Jeremias", "Jr"), ("Lamentacoes Jeremias", "Lm"), ("Ezequiel", "Ez"),
             ("Daniel", "Dn"), ("Oseias", "Os"), ("Joel", "Jl"), ("Amos", "Am"),
@@ -76,13 +80,20 @@ def criar_mapeamento_livros() -> dict[str, str]:
             ("I Joao", "1Jo"), ("II Joao", "2Jo"), ("III Joao", "3Jo"), ("Judas", "Jd"),
             ("Apocalipse", "Ap")
         ]
-        
+
+        # Reverter para priorizar IDs maiores (João sobre Jó)
+        livros_fallback.reverse()
+
         for nome, abrev in livros_fallback:
+            # Mapear abreviação exata -> abreviação
+            mapeamento[abrev] = abrev
+
             nome_normalizado = normalizar_texto(nome)
             mapeamento[nome_normalizado] = abrev
             abrev_normalizada = normalizar_texto(abrev)
-            mapeamento[abrev_normalizada] = abrev
-    
+            if abrev_normalizada not in mapeamento:
+                mapeamento[abrev_normalizada] = abrev
+
     return mapeamento
 
 
@@ -93,26 +104,31 @@ _mapeamento_livros_cache: Optional[dict[str, str]] = None
 def obter_abreviacao_livro(nome_livro: str) -> str:
     """
     Obtém a abreviação do livro a partir do nome (com ou sem acentos).
-    
+
     Args:
         nome_livro: Nome do livro (pode ter acentos, maiúsculas/minúsculas)
-        
+
     Returns:
         Abreviação do livro
-        
+
     Raises:
         ValueError: Se o livro não for encontrado
     """
     global _mapeamento_livros_cache
-    
+
     if _mapeamento_livros_cache is None:
         _mapeamento_livros_cache = criar_mapeamento_livros()
-    
+
+    # Verificar correspondência exata primeiro
+    if nome_livro in _mapeamento_livros_cache:
+        return _mapeamento_livros_cache[nome_livro]
+
+    # Verificar correspondência normalizada
     nome_normalizado = normalizar_texto(nome_livro)
-    
+
     if nome_normalizado in _mapeamento_livros_cache:
         return _mapeamento_livros_cache[nome_normalizado]
-    
+
     raise ValueError(f"Livro não encontrado: {nome_livro}")
 
 
