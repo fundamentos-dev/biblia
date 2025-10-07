@@ -1,4 +1,5 @@
 import re
+import re
 import unicodedata
 from typing import Annotated, Optional
 
@@ -17,16 +18,53 @@ router = APIRouter(tags=["biblia"])
 def normalizar_texto(texto: str) -> str:
     """
     Remove acentos e converte texto para minúsculas para comparação.
-    
+
     Args:
         texto: Texto para normalizar
-        
+
     Returns:
         Texto normalizado sem acentos e em minúsculas
     """
     texto_nfd = unicodedata.normalize('NFD', texto)
     texto_sem_acentos = texto_nfd.encode('ascii', 'ignore').decode('ascii')
     return texto_sem_acentos.lower().strip()
+
+
+def search_by_keyword(query: str, versao_abrev: str, limit: int = 5) -> list[VersiculoSchema]:
+    """
+    Busca versículos por palavra-chave com normalização de texto.
+
+    Args:
+        query: Texto da query
+        versao_abrev: Abreviação da versão
+        limit: Número máximo de resultados
+
+    Returns:
+        Lista de VersiculoSchema
+    """
+    normalized_query = re.sub(r'[^\w\s]', '', normalizar_texto(query))
+    results = []
+    with Session(engine) as session:
+        stmt = select(Versiculo, Versao, Livro).where(
+            Versao.abrev == versao_abrev,
+            Versao.active == True,
+            Versiculo.versao_id == Versao.id,
+            Versiculo.livro_id == Livro.id
+        )
+        verses = session.exec(stmt).all()
+        for vers, ver, liv in verses:
+            normalized_texto = re.sub(r'[^\w\s]', '', normalizar_texto(vers.texto))
+            if normalized_query in normalized_texto:
+                results.append(VersiculoSchema(
+                    versao_abrev=ver.abrev,
+                    livro_abrev=liv.abrev,
+                    capitulo=vers.capitulo,
+                    versiculo=vers.numero,
+                    texto=vers.texto
+                ))
+                if len(results) >= limit:
+                    break
+    return results
 
 
 def criar_mapeamento_livros() -> dict[str, str]:
@@ -333,35 +371,45 @@ async def captura_versiculos_biblia_por_busca(
     Raises:
         HTTPException: Se o formato da query for inválido ou erro na busca
     """
-    # Se ss=true, fazer busca semântica
+    # Se ss=true, fazer busca híbrida (palavra-chave + semântica)
     if ss:
         try:
-            # Realizar busca semântica
-            results = await semantic_search_service.search(
+            # Busca por palavra-chave primeiro
+            keyword_results = search_by_keyword(q, versao, 5)
+
+            # Busca semântica
+            semantic_results = await semantic_search_service.search(
                 query=q,
                 limit=5,
                 versao_abrev=versao
             )
-            
-            # Ordenar por score (maior primeiro) e converter para VersiculoSchema
-            results = sorted(results, key=lambda x: x.get("score", 0), reverse=True)
-            lista_versiculos = []
-            for result in results:
-                versiculo_schema = VersiculoSchema(
+
+            # Converter resultados semânticos para VersiculoSchema
+            semantic_schemas = []
+            for result in semantic_results:
+                semantic_schemas.append(VersiculoSchema(
                     versao_abrev=result.get("versao_abrev", versao),
                     livro_abrev=result.get("livro_abrev", ""),
                     capitulo=result.get("capitulo", 0),
                     versiculo=result.get("numero", 0),
-                    texto=result.get("text", ""),
-                )
-                lista_versiculos.append(versiculo_schema)
-            
-            return lista_versiculos
-            
+                    texto=result.get("text") or "",
+                ))
+
+            # Criar conjunto de IDs para evitar duplicatas
+            keyword_ids = {(k.versao_abrev, k.livro_abrev, k.capitulo, k.versiculo) for k in keyword_results}
+
+            # Combinar resultados: palavra-chave primeiro, depois semântica sem duplicatas
+            combined = keyword_results + [
+                s for s in semantic_schemas
+                if (s.versao_abrev, s.livro_abrev, s.capitulo, s.versiculo) not in keyword_ids
+            ]
+
+            return combined[:5]
+
         except Exception as e:
             raise HTTPException(
                 status_code=500,
-                detail=f"Erro na busca semântica: {str(e)}"
+                detail=f"Erro na busca híbrida: {str(e)}"
             )
     
     # Busca tradicional por referência

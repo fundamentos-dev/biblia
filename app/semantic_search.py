@@ -112,7 +112,7 @@ class SemanticSearch:
                 id=verse_id,
                 vector=embedding,
                 payload={
-                    "text": text,
+                    "content": text,
                     **metadata
                 }
             )
@@ -177,7 +177,7 @@ class SemanticSearch:
                 formatted_results.append({
                     "score": result.score,
                     "verse_id": result.id,
-                    "text": result.payload.get("content"),
+                     "text": result.payload.get("content"),
                     "livro_nome": metadata.get("livro_nome"),
                     "livro_abrev": metadata.get("livro_abrev"),
                     "capitulo": metadata.get("capitulo"),
