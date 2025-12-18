@@ -15,7 +15,7 @@
                 <div class="flex items-center space-x-2">
                     <span class="text-gray-500 dark:text-gray-600" aria-hidden="true">$</span>
                     <h1 class="text-lg font-semibold text-gray-800 dark:text-green-400">Bíblia SH</h1>
-                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.2.0</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.2.1</span>
                 </div>
 
                 <div class="flex items-center space-x-4">
@@ -186,8 +186,27 @@
 
                 <!-- Results -->
                 <div x-show="groupedResults.length > 0" x-cloak class="space-y-4">
-                    <div class="text-gray-500 dark:text-gray-600 text-sm mb-2">
-                        # Resultados encontrados: <span x-text="totalVerses"></span> versículo<span x-text="totalVerses !== 1 ? 's' : ''"></span>
+                    <div class="flex items-center text-gray-500 dark:text-gray-600 text-sm mb-2">
+                        <span>
+                            # Resultados encontrados: <span x-text="totalVerses"></span> versículo<span x-text="totalVerses !== 1 ? 's' : ''"></span>
+                        </span>
+                        <button type="button"
+                                @click="copyShareLink"
+                                class="ml-3 inline-flex items-center justify-center rounded opacity-60 hover:opacity-100 transition-opacity text-gray-600 dark:text-gray-400"
+                                :title="shareCopied ? 'Link copiado!' : 'Copiar link da busca'">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 458.624 458.624" aria-hidden="true">
+                                <g>
+                                    <g>
+                                        <path d="M339.588,314.529c-14.215,0-27.456,4.133-38.621,11.239l-112.682-78.67c1.809-6.315,2.798-12.976,2.798-19.871 c0-6.896-0.989-13.557-2.798-19.871l109.64-76.547c11.764,8.356,26.133,13.286,41.662,13.286c39.79,0,72.047-32.257,72.047-72.047 C411.634,32.258,379.378,0,339.588,0c-39.79,0-72.047,32.257-72.047,72.047c0,5.255,0.578,10.373,1.646,15.308l-112.424,78.491 c-10.974-6.759-23.892-10.666-37.727-10.666c-39.79,0-72.047,32.257-72.047,72.047s32.256,72.047,72.047,72.047 c13.834,0,26.753-3.907,37.727-10.666l113.292,79.097c-1.629,6.017-2.514,12.34-2.514,18.872c0,39.79,32.257,72.047,72.047,72.047 c39.79,0,72.047-32.257,72.047-72.047C411.635,346.787,379.378,314.529,339.588,314.529z"></path>
+                                    </g>
+                                </g>
+                            </svg>
+                        </button>
+                        <span x-show="shareCopied"
+                              x-transition
+                              class="ml-2 text-xs text-green-600 dark:text-green-500">
+                            Link copiado!
+                        </span>
                     </div>
                     
                     <template x-for="(group, index) in groupedResults" :key="index">
@@ -289,6 +308,8 @@ document.addEventListener('alpine:init', () => {
         statusClass: '',
         debounceTimer: null,
         copiedIndex: null,
+        shareCopied: false,
+        semanticOverride: false,
 
         // Sidebar state
         sidebarOpen: false,
@@ -315,16 +336,22 @@ document.addEventListener('alpine:init', () => {
         
         // Detectar se é busca semântica (texto livre)
         isSemanticSearch(query) {
+            if (this.semanticOverride) return true;
             if (!query.trim()) return false;
             
             // Se não segue o padrão de referência bíblica, é busca semântica
             return !this.validateQuery(query);
+        },
+
+        shouldUseSemanticSearch() {
+            return this.isSemanticSearch(this.searchQuery);
         },
         
         // Handler para input com debouncing
         handleInput() {
             clearTimeout(this.debounceTimer);
             this.errorMessage = '';
+            this.semanticOverride = false;
 
             if (!this.searchQuery.trim()) {
                 this.statusMessage = '';
@@ -332,7 +359,7 @@ document.addEventListener('alpine:init', () => {
             }
             
             // Verificar se é busca semântica
-            if (this.isSemanticSearch(this.searchQuery)) {
+            if (this.shouldUseSemanticSearch()) {
                 this.statusMessage = 'Modo de busca semântica habilitado';
                 this.statusClass = 'text-blue-600 dark:text-blue-500';
                 
@@ -520,7 +547,7 @@ document.addEventListener('alpine:init', () => {
         
         // Executar busca
         async executeSearch() {
-            const isSemanticSearch = this.isSemanticSearch(this.searchQuery);
+            const isSemanticSearch = this.shouldUseSemanticSearch();
             
             if (!isSemanticSearch && !this.validateQuery(this.searchQuery)) {
                 this.errorMessage = 'Formato inválido. Use: Livro Capítulo:Versículo ou texto livre para busca semântica';
@@ -532,6 +559,7 @@ document.addEventListener('alpine:init', () => {
             this.errorMessage = '';
             this.statusMessage = isSemanticSearch ? 'Realizando busca semântica...' : 'Buscando...';
             this.statusClass = 'text-gray-600 dark:text-gray-400';
+            this.shareCopied = false;
             
             try {
                 // Adicionar parâmetro ss=true se for busca semântica
@@ -543,6 +571,16 @@ document.addEventListener('alpine:init', () => {
                 if (isSemanticSearch) {
                     params.append('ss', 'true');
                 }
+
+                // Atualizar URL com a última busca
+                const url = new URL(window.location.href);
+                url.searchParams.set('q', this.searchQuery);
+                if (isSemanticSearch) {
+                    url.searchParams.set('ss', 'true');
+                } else {
+                    url.searchParams.delete('ss');
+                }
+                window.history.replaceState({}, '', url);
                 
                 const response = await fetch(`/api/v1/biblia/verse?${params}`);
                 
@@ -577,6 +615,31 @@ document.addEventListener('alpine:init', () => {
                 setTimeout(() => {
                     this.statusMessage = '';
                 }, 3000);
+            }
+        },
+
+        // Copiar link da busca para compartilhamento
+        async copyShareLink() {
+            if (!this.searchQuery.trim()) return;
+
+            const params = new URLSearchParams();
+            params.set('q', this.searchQuery);
+            if (this.shouldUseSemanticSearch()) {
+                params.set('ss', 'true');
+            }
+
+            const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                this.shareCopied = true;
+                setTimeout(() => {
+                    this.shareCopied = false;
+                }, 2000);
+            } catch (error) {
+                console.error('Erro ao copiar link:', error);
+                this.statusMessage = 'Não foi possível copiar o link';
+                this.statusClass = 'text-red-600 dark:text-red-500';
             }
         },
         
@@ -638,6 +701,7 @@ document.addEventListener('alpine:init', () => {
         // Selecionar lista e preencher input
         selectList(lista) {
             this.searchQuery = lista.conteudo;
+            this.semanticOverride = false;
             this.sidebarOpen = false;
             
             // Executar busca automaticamente
@@ -645,11 +709,27 @@ document.addEventListener('alpine:init', () => {
                 this.executeSearch();
             }, 100);
         },
+
+        // Carregar busca a partir da URL
+        loadQueryFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const query = params.get('q');
+            const semantic = params.get('ss') === 'true';
+
+            if (query) {
+                this.searchQuery = query;
+                this.semanticOverride = semantic;
+                setTimeout(() => {
+                    this.executeSearch();
+                }, 50);
+            }
+        },
         
         // Inicialização
         init() {
             // Carregar listas quando o componente é inicializado
             this.loadLists();
+            this.loadQueryFromUrl();
         }
     }));
 });

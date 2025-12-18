@@ -167,4 +167,4 @@ class TestGeralAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Bíblia Self-Hosted API"
-        assert data["version"] == "0.2.0"
+        assert data["version"] == "0.2.1"
