@@ -121,6 +121,14 @@ async def pagina_inicial(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/leitura", response_class=HTMLResponse, include_in_schema=False)
+async def pagina_leitura(request: Request):
+    """
+    Página de leitura sequencial da Bíblia.
+    """
+    return templates.TemplateResponse("leitura.html", {"request": request})
+
+
 @app.get("/api", include_in_schema=False)
 async def api_info():
     """

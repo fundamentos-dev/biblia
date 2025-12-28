@@ -1,5 +1,4 @@
 import re
-import re
 import unicodedata
 from typing import Annotated, Optional
 
@@ -7,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import Session, select
 
 from app.database import engine
-from app.models.Biblia import Livro, LivroCapituloNumeroVersiculos, Versao, Versiculo
+from app.models.Biblia import Livro, LivroCapituloNumeroVersiculos, Versao, Versiculo, Testamento
 from app.schemas.biblia import VersiculoSchema, ListaLeituraResponse, ListaLeituraSchema
 from app.semantic_search import semantic_search_service
 
@@ -502,3 +501,86 @@ async def get_number_of_verses(book_id: int, chapter_number: int) -> int:
         return result.total_versiculos if result else 0
     except Exception:
         raise HTTPException(status_code=500, detail="Erro ao buscar versículos")
+
+@router.get("/biblia/books/grouped")
+async def get_books_grouped_by_testament() -> list[dict]:
+    """
+    Retorna os livros agrupados por testamento (Velho e Novo).
+    """
+    try:
+        with Session(engine) as session:
+            testaments = session.exec(select(Testamento).order_by(Testamento.id)).all()
+            result = []
+            
+            for t in testaments:
+                stmt = select(Livro).where(Livro.testamento_id == t.id).order_by(Livro.posicao)
+                books = session.exec(stmt).all()
+                result.append({
+                    "id": t.id,
+                    "nome": t.nome,
+                    "livros": books
+                })
+            return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar livros agrupados: {str(e)}")
+
+
+@router.get("/biblia/chapter/{versao_abrev}/{book_abrev}/{chapter}")
+async def get_chapter_content(
+    versao_abrev: str, 
+    book_abrev: str, 
+    chapter: int
+) -> list[VersiculoSchema]:
+    """
+    Retorna todo o conteúdo de um capítulo específico.
+    """
+    try:
+        with Session(engine) as session:
+            # Busca direta usando joins para eficiência
+            stmt = (
+                select(Versiculo, Versao, Livro)
+                .join(Versao)
+                .join(Livro)
+                .where(Versao.abrev == versao_abrev)
+                .where(Versao.active == True)
+                .where(Livro.abrev == book_abrev)
+                .where(Versiculo.capitulo == chapter)
+                .order_by(Versiculo.numero)
+            )
+            
+            results = session.exec(stmt).all()
+            
+            if not results:
+                # Verificar se o livro existe para dar erro mais preciso
+                livro_exists = session.exec(select(Livro).where(Livro.abrev == book_abrev)).first()
+                if not livro_exists:
+                    raise HTTPException(status_code=404, detail=f"Livro '{book_abrev}' não encontrado")
+                
+                # Verificar se o capítulo existe
+                if livro_exists:
+                     cap_exists = session.exec(
+                         select(LivroCapituloNumeroVersiculos)
+                         .where(LivroCapituloNumeroVersiculos.livro_id == livro_exists.id)
+                         .where(LivroCapituloNumeroVersiculos.capitulo == chapter)
+                     ).first()
+                     if not cap_exists:
+                         raise HTTPException(status_code=404, detail=f"Capítulo {chapter} não encontrado em {book_abrev}")
+
+                # Se chegou aqui, pode ser que a versão não tenha esse texto ou outro erro
+                return []
+
+            verses = []
+            for vers, ver, liv in results:
+                verses.append(VersiculoSchema(
+                    versao_abrev=ver.abrev,
+                    livro_abrev=liv.abrev,
+                    capitulo=vers.capitulo,
+                    versiculo=vers.numero,
+                    texto=vers.texto
+                ))
+            return verses
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar capítulo: {str(e)}")
