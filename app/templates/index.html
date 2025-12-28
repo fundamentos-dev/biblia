@@ -310,6 +310,7 @@ document.addEventListener('alpine:init', () => {
         copiedIndex: null,
         shareCopied: false,
         semanticOverride: false,
+        abortController: null,
 
         // Sidebar state
         sidebarOpen: false,
@@ -547,6 +548,13 @@ document.addEventListener('alpine:init', () => {
         
         // Executar busca
         async executeSearch() {
+            // Cancelar requisição anterior se existir
+            if (this.abortController) {
+                this.abortController.abort();
+            }
+            this.abortController = new AbortController();
+            const signal = this.abortController.signal;
+
             const isSemanticSearch = this.shouldUseSemanticSearch();
             
             if (!isSemanticSearch && !this.validateQuery(this.searchQuery)) {
@@ -582,7 +590,7 @@ document.addEventListener('alpine:init', () => {
                 }
                 window.history.replaceState({}, '', url);
                 
-                const response = await fetch(`/api/v1/biblia/verse?${params}`);
+                const response = await fetch(`/api/v1/biblia/verse?${params}`, { signal });
                 
                 if (!response.ok) {
                     const error = await response.json();
@@ -604,17 +612,22 @@ document.addEventListener('alpine:init', () => {
                 }
                 
             } catch (error) {
+                if (error.name === 'AbortError') {
+                    return;
+                }
                 this.errorMessage = error.message;
                 this.statusMessage = 'Erro na busca';
                 this.statusClass = 'text-red-600 dark:text-red-500';
                 this.groupedResults = [];
             } finally {
-                this.isLoading = false;
-                
-                // Limpar status após 3 segundos
-                setTimeout(() => {
-                    this.statusMessage = '';
-                }, 3000);
+                if (!signal.aborted) {
+                    this.isLoading = false;
+                    
+                    // Limpar status após 3 segundos
+                    setTimeout(() => {
+                        this.statusMessage = '';
+                    }, 3000);
+                }
             }
         },
 
@@ -700,6 +713,7 @@ document.addEventListener('alpine:init', () => {
         
         // Selecionar lista e preencher input
         selectList(lista) {
+            clearTimeout(this.debounceTimer);
             this.searchQuery = lista.conteudo;
             this.semanticOverride = false;
             this.sidebarOpen = false;
