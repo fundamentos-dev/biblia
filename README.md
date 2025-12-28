@@ -20,3 +20,11 @@ alembic upgrade ae1
 alembic current
 alembic history --verbose
 ```
+
+## Notas de Lançamento
+
+### v0.3.0
+
+- Oficializa o modo Leitura com layout completo em `leitura.html`, navegação por livros/capítulos, seletor de versões e estados de carregamento, conforme o commit `5977307a01023c48d9bc7d7f95b9a71d981e9ba5`.
+- Expõe o endpoint `/api/v1/biblia/versions` para abastecer o seletor de versão do modo Leitura e manter dados reais da base, também trazido por `5977307a01023c48d9bc7d7f95b9a71d981e9ba5`.
+- Ajusta os rodapés e o link do Código Fonte para o repositório oficial, deixando a navegação do modo leitura consistente com a página principal (commit `3fdefe4283e3ef36ee7e93508c765a4c8d47ba31`).

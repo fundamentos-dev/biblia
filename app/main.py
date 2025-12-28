@@ -75,7 +75,7 @@ API para busca e navegação em textos bíblicos, com foco em uso doméstico e p
 - `João 3:16,17,20` - Múltiplos versículos
 - `João 3:16; Mateus 5:1` - Múltiplos livros
 """,
-    version="0.2.1",
+    version="0.3.0",
     openapi_tags=tags_metadata,
     lifespan=lifespan,
     contact={
@@ -139,7 +139,7 @@ async def api_info():
     """
     return {
         "name": "Bíblia Self-Hosted API",
-        "version": "0.2.1",
+        "version": "0.3.0",
         "docs": "/docs",
         "openapi": "/openapi.json",
     }
