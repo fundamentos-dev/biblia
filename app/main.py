@@ -80,7 +80,7 @@ API para busca e navegação em textos bíblicos, com foco em uso doméstico e p
     lifespan=lifespan,
     contact={
         "name": "Bíblia Self-Hosted",
-        "url": "https://github.com/user/biblia-self-hosted",
+        "url": "https://github.com/fundamentos-dev/biblia",
     },
     license_info={"name": "MIT License", "url": "https://opensource.org/licenses/MIT"},
 )
