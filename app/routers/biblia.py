@@ -584,3 +584,16 @@ async def get_chapter_content(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao buscar capítulo: {str(e)}")
+
+
+@router.get("/biblia/versions")
+async def get_versions() -> list[Versao]:
+    """
+    Retorna todas as versões bíblicas ativas.
+    """
+    try:
+        with Session(engine) as session:
+            stmt = select(Versao).where(Versao.active == True).order_by(Versao.nome)
+            return session.exec(stmt).all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao buscar versões: {str(e)}")

@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    /* Garantir contraste em modo leitura, sobrepondo estilos globais se necessário */
+    .reading-title {
+        color: #000000 !important;
+    }
+    .dark .reading-title {
+        color: #f3f4f6 !important;
+    }
+    .verse-text {
+        color: #111827 !important;
+    }
+    .dark .verse-text {
+        color: #e5e7eb !important;
+    }
+    .chapter-number-btn {
+        color: #1f2937 !important;
+    }
+    .dark .chapter-number-btn {
+        color: #d1d5db !important;
+    }
+    .book-name {
+        color: #111827 !important;
+    }
+    .dark .book-name {
+        color: #d1d5db !important;
+    }
+    .book-name-selected {
+        color: #15803d !important; /* green-700 */
+    }
+    .dark .book-name-selected {
+        color: #4ade80 !important; /* green-400 */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="leituraMode" class="h-screen flex flex-col overflow-hidden">
+    <!-- Header -->
+    <header class="flex-none border-b border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm z-10">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="text-gray-500 dark:text-gray-600" aria-hidden="true">$</span>
+                    <h1 class="text-lg font-semibold text-gray-800 dark:text-green-400">Bíblia SH</h1>
+                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.2.1</span>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="hidden md:flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                    <a href="/" 
+                       class="px-3 py-1 text-sm font-medium rounded-md text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-green-400 transition-colors">
+                       Pesquisa
+                    </a>
+                    <a href="/leitura" 
+                       class="px-3 py-1 text-sm font-medium rounded-md transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-green-400 shadow-sm">
+                       Leitura
+                    </a>
+                </nav>
+
+                <div class="flex items-center space-x-4">
+                    <!-- Mobile Sidebar Toggle -->
+                    <button @click="sidebarOpen = !sidebarOpen"
+                            class="lg:hidden p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Theme Toggle -->
+                    <button @click="toggleTheme()"
+                            class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+                        <svg x-show="!isDark" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+                        </svg>
+                        <svg x-show="isDark" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="fixed inset-y-0 left-0 z-20 w-80 bg-white dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 transform transition-transform duration-300 lg:relative lg:translate-x-0 flex flex-col"
+               :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+            
+            <!-- Sidebar Header / Mobile Close -->
+            <div class="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-semibold text-gray-700 dark:text-gray-300">Navegação</h3>
+                <button @click="sidebarOpen = false" class="text-gray-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Version Selector -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950">
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Versão</label>
+                <select x-model="selectedVersion" 
+                        @change="handleVersionChange"
+                        class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:text-gray-200">
+                    <template x-for="version in versions" :key="version.id">
+                        <option :value="version.abrev" x-text="version.nome + ' (' + version.abrev + ')'"></option>
+                    </template>
+                </select>
+            </div>
+
+            <!-- Books List -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-6">
+                <template x-for="testamento in booksGrouped" :key="testamento.id">
+                    <div>
+                        <h3 class="px-2 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider sticky top-0 bg-white dark:bg-gray-900 py-2 z-10" 
+                            x-text="testamento.nome"></h3>
+                        <div class="mt-2 space-y-1">
+                            <template x-for="book in testamento.livros" :key="book.id">
+                                <div class="rounded-md overflow-hidden">
+                                    <button @click="toggleBook(book)" 
+                                            class="w-full text-left px-3 py-2 text-sm transition-colors flex justify-between items-center group"
+                                            :class="selectedBook?.id === book.id ? 'bg-green-50 dark:bg-green-900/20 font-medium' : 'hover:bg-gray-100 dark:hover:bg-gray-800'">
+                                        <span x-text="book.nome" :class="selectedBook?.id === book.id ? 'book-name-selected' : 'book-name'"></span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-600 group-hover:text-gray-600" x-text="book.abrev"></span>
+                                    </button>
+                                    
+                                    <!-- Chapter Grid -->
+                                    <div x-show="selectedBook?.id === book.id" 
+                                         x-transition
+                                         class="p-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
+                                        
+                                        <div x-show="loadingChapters" class="text-xs text-gray-500 text-center py-2">
+                                            Carregando...
+                                        </div>
+
+                                        <div x-show="!loadingChapters" class="grid grid-cols-5 gap-2">
+                                            <template x-for="cap in chapters" :key="cap">
+                                                <button @click="loadChapter(cap)"
+                                                        class="h-8 flex items-center justify-center text-xs rounded transition-colors chapter-number-btn"
+                                                        :class="selectedChapter === cap ? 'bg-green-600 !text-white font-bold shadow-sm' : 'bg-white dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900 hover:text-green-700 dark:hover:text-green-300 border border-gray-200 dark:border-gray-600'">
+                                                    <span x-text="cap"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </aside>
+
+        <!-- Overlay -->
+        <div x-show="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-black bg-opacity-50 z-10 lg:hidden"></div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 scroll-smooth" id="main-content">
+            <div class="max-w-4xl mx-auto px-4 py-8 lg:py-12">
+                
+                <!-- Loading State -->
+                <div x-show="isLoading" class="flex flex-col items-center justify-center py-20 text-gray-500">
+                    <svg class="animate-spin h-8 w-8 mb-4 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Carregando texto...</span>
+                </div>
+
+                <!-- Empty State -->
+                <div x-show="!isLoading && !selectedChapter && !selectedBook" class="text-center py-20">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-800 mb-6">
+                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-medium text-gray-900 dark:text-gray-100 mb-2">Modo de Leitura</h2>
+                    <p class="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                        Selecione um livro e capítulo na barra lateral para começar sua leitura.
+                    </p>
+                </div>
+
+                <!-- Chapter Content -->
+                <div x-show="!isLoading && chapterContent.length > 0" x-cloak>
+                    <!-- Chapter Header -->
+                    <div class="text-center mb-10 border-b border-gray-200 dark:border-gray-800 pb-8">
+                        <h1 class="text-3xl lg:text-4xl font-serif font-bold mb-2 reading-title">
+                            <span x-text="selectedBook?.nome"></span> <span x-text="selectedChapter"></span>
+                        </h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-500 uppercase tracking-widest" x-text="selectedVersion"></p>
+                    </div>
+
+                    <!-- Verses -->
+                    <div class="prose prose-lg dark:prose-invert max-w-none font-serif leading-loose">
+                        <div class="space-y-6">
+                            <!-- Group verses by paragraphs (simulation) or just list them -->
+                            <template x-for="verse in chapterContent" :key="verse.versiculo">
+                                <span class="relative group hover:bg-yellow-50 dark:hover:bg-yellow-900/10 transition-colors duration-150 rounded px-1 -mx-1 py-0.5 inline">
+                                    <sup class="text-[0.65em] text-green-700 dark:text-green-500 font-bold mr-1 select-none opacity-80 group-hover:opacity-100" 
+                                         x-text="verse.versiculo"></sup>
+                                    <span class="verse-text" x-text="verse.texto"></span>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Footer -->
+                    <div class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-800 flex justify-between">
+                        <button @click="prevChapter" 
+                                :disabled="!hasPrevChapter"
+                                class="flex items-center space-x-2 px-4 py-2 rounded-md hover:bg-white dark:hover:bg-gray-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-gray-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            <span>Capítulo Anterior</span>
+                        </button>
+
+                        <button @click="nextChapter" 
+                                :disabled="!hasNextChapter"
+                                class="flex items-center space-x-2 px-4 py-2 rounded-md hover:bg-white dark:hover:bg-gray-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-gray-400">
+                            <span>Próximo Capítulo</span>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('leituraMode', () => ({
+        sidebarOpen: false,
+        isLoading: false,
+        loadingChapters: false,
+        
+        booksGrouped: [],
+        versions: [],
+        selectedVersion: 'ARA',
+        selectedBook: null,
+        selectedChapter: null,
+        chapters: [], // Array of chapter numbers
+        chapterContent: [],
+        
+        // Navigation state
+        hasPrevChapter: false,
+        hasNextChapter: false,
+
+        async init() {
+            await Promise.all([
+                this.fetchVersions(),
+                this.fetchBooks()
+            ]);
+            
+            // Check URL for state
+            const params = new URLSearchParams(window.location.search);
+            const bookAbrev = params.get('book');
+            const chapter = params.get('chapter');
+            const version = params.get('version');
+
+            if (version && this.versions.some(v => v.abrev === version)) {
+                this.selectedVersion = version;
+            }
+            
+            if (bookAbrev) {
+                // Find book object
+                for (const group of this.booksGrouped) {
+                    const book = group.livros.find(b => b.abrev === bookAbrev);
+                    if (book) {
+                        await this.toggleBook(book);
+                        if (chapter) {
+                            await this.loadChapter(parseInt(chapter));
+                        }
+                        break;
+                    }
+                }
+            }
+        },
+
+        async fetchVersions() {
+            try {
+                const res = await fetch('/api/v1/biblia/versions');
+                if (!res.ok) throw new Error('Falha ao carregar versões');
+                this.versions = await res.json();
+                
+                // Ensure default is valid, or pick first
+                if (this.versions.length > 0 && !this.versions.some(v => v.abrev === this.selectedVersion)) {
+                    this.selectedVersion = this.versions[0].abrev;
+                }
+            } catch (e) {
+                console.error(e);
+                // Fallback basic
+                this.versions = [{id: 1, nome: 'Almeida Revista e Atualizada', abrev: 'ARA'}];
+            }
+        },
+
+        handleVersionChange() {
+             if (this.selectedBook && this.selectedChapter) {
+                 this.loadChapter(this.selectedChapter);
+             }
+        },
+
+        async fetchBooks() {
+            try {
+                const res = await fetch('/api/v1/biblia/books/grouped');
+                if (!res.ok) throw new Error('Falha ao carregar livros');
+                this.booksGrouped = await res.json();
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        async toggleBook(book) {
+            if (this.selectedBook?.id === book.id) {
+                // If clicking same book, maybe just toggle visibility? 
+                // For now, let's keep it open to allow re-selecting chapters
+                return;
+            }
+
+            this.selectedBook = book;
+            this.selectedChapter = null; // Reset chapter when changing book
+            this.chapterContent = [];
+            this.loadingChapters = true;
+
+            try {
+                const res = await fetch(`/api/v1/biblia/book/${book.id}/chapters`);
+                const count = await res.json();
+                this.chapters = Array.from({length: count}, (_, i) => i + 1);
+            } catch (e) {
+                console.error(e);
+                this.chapters = [];
+            } finally {
+                this.loadingChapters = false;
+            }
+        },
+
+        async loadChapter(chapterNum) {
+            if (!this.selectedBook) return;
+
+            this.selectedChapter = chapterNum;
+            this.isLoading = true;
+            this.sidebarOpen = false; // Close mobile sidebar
+
+            // Update URL
+            const url = new URL(window.location.href);
+            url.searchParams.set('book', this.selectedBook.abrev);
+            url.searchParams.set('chapter', chapterNum);
+            url.searchParams.set('version', this.selectedVersion);
+            window.history.pushState({}, '', url);
+
+            try {
+                const res = await fetch(`/api/v1/biblia/chapter/${this.selectedVersion}/${this.selectedBook.abrev}/${chapterNum}`);
+                if (!res.ok) throw new Error('Falha ao carregar capítulo');
+                this.chapterContent = await res.json();
+                
+                // Scroll to top
+                const mainContent = document.getElementById('main-content');
+                if (mainContent) mainContent.scrollTop = 0;
+                
+                this.updateNavState();
+
+            } catch (e) {
+                console.error(e);
+                this.chapterContent = [];
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        
+        updateNavState() {
+             this.hasPrevChapter = this.selectedChapter > 1;
+             this.hasNextChapter = this.selectedChapter < this.chapters.length;
+        },
+        
+        async nextChapter() {
+            if (this.hasNextChapter) {
+                await this.loadChapter(this.selectedChapter + 1);
+            }
+        },
+        
+        async prevChapter() {
+            if (this.hasPrevChapter) {
+                await this.loadChapter(this.selectedChapter - 1);
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}
