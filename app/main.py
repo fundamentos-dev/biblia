@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .routers import geral, biblia, listas_leitura
+from .routers import geral, biblia, listas_leitura, strongs
 
 # Configuração de templates
 BASE_DIR = Path(__file__).resolve().parent
@@ -33,6 +33,10 @@ tags_metadata = [
     {
         "name": "listas-leitura",
         "description": "Endpoints para gerenciar listas de leitura bíblica",
+    },
+    {
+        "name": "strongs",
+        "description": "Endpoints para texto original e definições Strong",
     },
 ]
 
@@ -75,7 +79,7 @@ API para busca e navegação em textos bíblicos, com foco em uso doméstico e p
 - `João 3:16,17,20` - Múltiplos versículos
 - `João 3:16; Mateus 5:1` - Múltiplos livros
 """,
-    version="0.3.0",
+    version="0.4.0",
     openapi_tags=tags_metadata,
     lifespan=lifespan,
     contact={
@@ -99,6 +103,7 @@ v1_router = APIRouter(prefix="/api/v1", tags=["v1"])
 v1_router.include_router(geral.router)
 v1_router.include_router(biblia.router)
 v1_router.include_router(listas_leitura.router)
+v1_router.include_router(strongs.router)
 
 
 
@@ -139,7 +144,7 @@ async def api_info():
     """
     return {
         "name": "Bíblia Self-Hosted API",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "docs": "/docs",
         "openapi": "/openapi.json",
     }

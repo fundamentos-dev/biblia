@@ -1,6 +1,6 @@
 services:
   db-bible:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     restart: always
     environment:
       POSTGRES_DB: ${DB_NAME}

@@ -70,6 +70,7 @@ class SemanticSearch:
                 logger.info(f"Coleção '{self.collection_name}' criada no Qdrant")
         except Exception as e:
             logger.error(f"Erro ao verificar/criar coleção: {e}")
+            self.client = None  # Desabilitar cliente em caso de erro
             
     async def get_embedding(self, text: str) -> Optional[List[float]]:
         """Obtém embedding do texto usando Ollama"""

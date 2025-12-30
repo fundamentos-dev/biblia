@@ -1,0 +1,21 @@
+{
+  "1": [
+    {"word": "Ἐν", "strong": "G1722", "morph": "PREP"},
+    {"word": "ἀρχῇ", "strong": "G746", "morph": "N-DSF"},
+    {"word": "ἦν", "strong": "G2258", "morph": "V-IXI-3S"},
+    {"word": "ὁ", "strong": "G3588", "morph": "T-NSM"},
+    {"word": "λόγος", "strong": "G3056", "morph": "N-NSM"},
+    {"word": "καί", "strong": "G2532", "morph": "CONJ"},
+    {"word": "ὁ", "strong": "G3588", "morph": "T-NSM"},
+    {"word": "λόγος", "strong": "G3056", "morph": "N-NSM"},
+    {"word": "ἦν", "strong": "G2258", "morph": "V-IXI-3S"},
+    {"word": "πρὸς", "strong": "G4314", "morph": "PREP"},
+    {"word": "τὸν", "strong": "G3588", "morph": "T-ASM"},
+    {"word": "θεόν", "strong": "G2316", "morph": "N-ASM"},
+    {"word": "καί", "strong": "G2532", "morph": "CONJ"},
+    {"word": "θεὸς", "strong": "G2316", "morph": "N-NSM"},
+    {"word": "ἦν", "strong": "G2258", "morph": "V-IXI-3S"},
+    {"word": "ὁ", "strong": "G3588", "morph": "T-NSM"},
+    {"word": "λόγος", "strong": "G3056", "morph": "N-NSM"}
+  ]
+}

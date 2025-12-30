@@ -1,0 +1,58 @@
+{
+  "G1722": {
+    "lemma": "ἐν",
+    "translit": "en",
+    "pronunciation": "en",
+    "strongs_def": "in, at, (up-)on, by, etc.",
+    "kjv_def": "about, after, against, + almost, X altogether, among, X as, at, before, between, (here-)by (+ all means), for (... sake of), + give self wholly to, (here-)in (-to, -wardly), X mightily, ! (because) of, (up-)on, [open-]ly, X outwardly, one, X quickly, X shortly, [speedi-]ly, X that, X there (-in, -on), through (-out), (un-)to(-ward), under, when, where (-with), while, with (-in)."
+  },
+  "G746": {
+    "lemma": "ἀρχή",
+    "translit": "archē",
+    "pronunciation": "ar-khay'",
+    "strongs_def": "a commencement, or (concretely) chief (in various applications of order, time, place, or rank)",
+    "kjv_def": "beginning, corner, (at the, the) first (estate), magistrate, power, principality, principle, rule."
+  },
+  "G2258": {
+    "lemma": "ἦν",
+    "translit": "ēn",
+    "pronunciation": "ane",
+    "strongs_def": "I (thou, etc.) was (the more or less emphatic or rather irregular imperfect of G1510)",
+    "kjv_def": "+ agree, be, X have (+ charge of), hold, use, was(-t), were."
+  },
+  "G3588": {
+    "lemma": "ὁ",
+    "translit": "ho",
+    "pronunciation": "ho",
+    "strongs_def": "the definite article; the (sometimes to be supplied, at others omitted, in English idiom)",
+    "kjv_def": "the, this, that, one, he, she, it, etc."
+  },
+  "G3056": {
+    "lemma": "λόγος",
+    "translit": "logos",
+    "pronunciation": "log'-os",
+    "strongs_def": "something said (including the thought); by implication, a topic (subject of discourse), also reasoning (the mental faculty) or motive; by extension, a computation; specially, (with the article in John) the Divine Expression (i.e. Christ)",
+    "kjv_def": "account, cause, communication, X concerning, doctrine, fame, X have to do, intent, matter, mouth, preaching, question, reason, + reckon, remove, say(-ing), shew, X speaker, speech, talk, thing, + none of these things move me, tidings, treatise, utterance, word, work."
+  },
+  "G2532": {
+    "lemma": "καί",
+    "translit": "kai",
+    "pronunciation": "kahee",
+    "strongs_def": "and, also, even, so then, too, etc.; often used in connection (or as addition) with other particles or small words",
+    "kjv_def": "and, also, both, but, even, for, if, or, so, that, then, therefore, when, yet."
+  },
+  "G4314": {
+    "lemma": "πρός",
+    "translit": "pros",
+    "pronunciation": "pros",
+    "strongs_def": "a preposition of direction; forward to, i.e. toward (with the genitive case, the side of, i.e. pertaining to; with the dative case, by the side of, i.e. near to; usually with the accusative case, the place, time, occasion, or respect, which is the destination of the relation, i.e. whither or for which it is predicated)",
+    "kjv_def": "about, according to, against, among, at, because of, before, between, ([where-])by, for, X at thy house, in, for intent, nigh unto, of, which pertain to, that, to (the end that), X together, to (you) -ward, unto, with (-in)."
+  },
+  "G2316": {
+    "lemma": "θεός",
+    "translit": "theos",
+    "pronunciation": "theh'-os",
+    "strongs_def": "a deity, especially (with G3588) the supreme Divinity; figuratively, a magistrate; by Hebraism, very",
+    "kjv_def": "X exceeding, God, god [-ly, -ward]."
+  }
+}

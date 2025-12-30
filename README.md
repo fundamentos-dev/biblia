@@ -1,11 +1,51 @@
 Bíblia Self-Hosted em português com intenção de uso doméstico, inicialmente criado para o Jogo da Bíblia, porém com pretenção de ser um rápido buscador desacoplado da nuvem com a facilidade de rodar fora de rastreamento.
 
-## Onde queremos chegar 
+## Funcionalidades
 
-- [ ] Fase 1: Apenas campo de busca com referências (Em Andamento)
-- [ ] Fase 2: Criação de anotações: cada tag de anotação pode ter uma cor e um título, podemos ver a lista de todas elas
-- [ ] Fase 3: Leitura corrida das escrituras ao selecionar um Livro, capítulo e versículo
-- [ ] Fase 4: Busca avançada utilizando NLP e IA para buscar por sinônimos e contexto
+- **Busca de Referências:** Pesquisa rápida (ex: `Jo 3:16`) com suporte a múltiplas versões.
+- **Modo Leitura:** Navegação fluida por livros e capítulos com interface limpa.
+- **Modo Strong:** Estudo do texto original (Hebraico/Grego) com dicionário integrado (acessível via ícone `S` na busca ou clicando no versículo no modo leitura).
+
+## Próximos Passos (Roadmap)
+
+- [ ] **Anotações:** Sistema de tags e notas pessoais.
+- [ ] **Busca Semântica:** NLP e IA para buscar por sentido e contexto.
+
+## Modo Strong (Texto Original)
+
+O sistema possui uma funcionalidade de "Modo Strong" que permite visualizar o texto original (Hebraico/Grego) e as definições do dicionário Strong para cada palavra.
+
+### Processo de Importação de Dados (Auditável)
+
+Os dados não são distribuídos nativamente com o repositório por questões de tamanho, mas scripts são fornecidos para baixar e popular o banco de dados a partir de fontes open-source confiáveis.
+
+**1. Dicionários Strong (Léxico)**
+*   **Fonte:** [OpenScriptures/strongs](https://github.com/openscriptures/strongs)
+*   **Script:** `scripts/import_full_dictionaries.py`
+*   **Ação:** Baixa os arquivos JSON brutos do GitHub (Hebraico e Grego) e popula a tabela `strongs_entry`.
+
+**2. Novo Testamento (Grego)**
+*   **Fonte:** [OpenGNT](https://github.com/eliranwong/OpenGNT)
+*   **Arquivo:** `OpenGNT_keyedFeatures.csv.zip`
+*   **Script:** `scripts/import_opengnt_nt.py`
+*   **Ação:** Baixa o CSV, mapeia os livros para os IDs internos, limpa os códigos Strong (remove sufixos e zeros à esquerda) e popula a tabela `original_token` (aprox. 138k tokens).
+
+**3. Antigo Testamento (Hebraico)**
+*   **Fonte:** [OpenScriptures/morphhb](https://github.com/openscriptures/morphhb) (Westminster Leningrad Codex)
+*   **Arquivos:** XMLs OSIS por livro (`Gen.xml`, `Exod.xml`, etc.)
+*   **Script:** `scripts/import_oshb_ot.py`
+*   **Ação:** Baixa recursivamente os XMLs do diretório `wlc/`, parseia a estrutura OSIS (`<verse>`, `<w>`), normaliza os códigos Strong (`c/559` -> `H559`) e popula a tabela `original_token` (aprox. 305k tokens).
+
+### Execução da Importação
+
+Para popular sua base local:
+
+```sh
+# Dentro do container ou venv
+python scripts/import_full_dictionaries.py
+python scripts/import_opengnt_nt.py
+python scripts/import_oshb_ot.py
+```
 
 ## Alembic
 
@@ -22,6 +62,13 @@ alembic history --verbose
 ```
 
 ## Notas de Lançamento
+
+### v0.4.0
+
+- **Modo Strong Completo:** Implementação da visualização do texto original (Hebraico e Grego) com morfologia e definições do dicionário Strong.
+- **Integração UX:** Acesso ao original através do botão `S` na pesquisa ou clicando diretamente nos versículos no Modo Leitura.
+- **Scripts de Importação:** Ferramentas automatizadas (`scripts/import_*.py`) para baixar e popular a base de dados com léxicos e textos interlineares de fontes open-source (OpenScriptures, OpenGNT, MorphHB).
+- **Correções:** Melhorias na estabilidade do modal e tratamento de dados faltantes.
 
 ### v0.3.0
 
