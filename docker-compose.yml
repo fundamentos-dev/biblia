@@ -27,20 +27,29 @@ services:
       - ${APP_PORT}:8000
     depends_on:
       - db-bible
+      - llama-cpp
     networks:
       - bible-network
-      - ollama
-      - qdrant
+  llama-cpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    volumes:
+      - ./data/models:/models
+    command:
+      - "--model"
+      - "/models/Qwen3-Embedding-4B-Q8_0.gguf"
+      - "--embedding"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+    networks:
+      - bible-network
 
 networks:
   bible-network:
     name: "bible-net"
     driver: bridge
   cloudbeaver:
-    external: true
-  ollama:
-    external: true
-  qdrant:
-    name: "qdrant_default"
     external: true
     

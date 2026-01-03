@@ -2,17 +2,10 @@ import logging
 import httpx
 import os
 from typing import List, Optional, Dict, Any
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    VectorParams,
-    PointStruct,
-    SearchRequest,
-    Filter,
-    FieldCondition,
-    MatchValue
-)
 from dotenv import load_dotenv
+from sqlmodel import Session, text
+
+from app.database import engine
 
 # Carregar variáveis de ambiente com override=True
 load_dotenv(override=True)
@@ -22,111 +15,176 @@ logger = logging.getLogger("api.semantic_search")
 class SemanticSearch:
     def __init__(
         self,
-        qdrant_host: str = "qdrant",
-        qdrant_grpc_port: int = 6334,
         ollama_host: str = "ollama",
         ollama_port: int = 11434,
-        collection_name: str = "biblia_ara",
-        model_name: str = "mxbai-embed-large",
-        embedding_dim: int = 1024
+        embedding_model: str = "qwen3-embedding-4b-gguf-q8_0",
+        embedding_dim: Optional[int] = None,
+        embedding_provider: str = "ollama",
+        llama_cpp_embed_url: Optional[str] = None,
+        hnsw_ef_search: int = 64,
     ):
-        self.qdrant_host = qdrant_host
-        self.qdrant_grpc_port = qdrant_grpc_port
-        self.ollama_host = ollama_host
-        self.ollama_port = ollama_port
-        self.collection_name = collection_name
-        self.model_name = model_name
-        self.embedding_dim = embedding_dim
-        
-        # Obter API key do ambiente
-        api_key = os.getenv("QDRANT_API_KEY")
-        
-        # Inicializar cliente Qdrant
-        try:
-            self.client = QdrantClient(
-                host=qdrant_host,
-                grpc_port=qdrant_grpc_port,
-                api_key=api_key,
-                prefer_grpc=True,
-                https=False
-            )
-            self._ensure_collection()
-        except Exception as e:
-            logger.error(f"Erro ao conectar com Qdrant: {e}")
-            self.client = None
-            
-    def _ensure_collection(self):
-        """Garante que a coleção existe no Qdrant"""
-        try:
-            collections = self.client.get_collections()
-            if self.collection_name not in [c.name for c in collections.collections]:
-                self.client.create_collection(
-                    collection_name=self.collection_name,
-                    vectors_config=VectorParams(
-                        size=self.embedding_dim,
-                        distance=Distance.COSINE
-                    )
-                )
-                logger.info(f"Coleção '{self.collection_name}' criada no Qdrant")
-        except Exception as e:
-            logger.error(f"Erro ao verificar/criar coleção: {e}")
-            self.client = None  # Desabilitar cliente em caso de erro
-            
-    async def get_embedding(self, text: str) -> Optional[List[float]]:
-        """Obtém embedding do texto usando Ollama"""
+        self.ollama_host = os.getenv("OLLAMA_HOST", ollama_host)
+        self.ollama_port = int(os.getenv("OLLAMA_PORT", ollama_port))
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", embedding_model)
+        self.embedding_provider = os.getenv(
+            "EMBEDDING_PROVIDER",
+            embedding_provider
+        ).lower()
+        self.llama_cpp_embed_url = os.getenv(
+            "LLAMA_CPP_EMBED_URL",
+            llama_cpp_embed_url or ""
+        )
+        self.llama_cpp_embed_url = (
+            self.llama_cpp_embed_url if self.llama_cpp_embed_url else None
+        )
+
+        embedding_dim_env = os.getenv("EMBEDDING_DIM")
+        self.embedding_dim = (
+            int(embedding_dim_env) if embedding_dim_env else embedding_dim
+        )
+        hnsw_ef_search_env = os.getenv("HNSW_EF_SEARCH")
+        self.hnsw_ef_search = (
+            int(hnsw_ef_search_env) if hnsw_ef_search_env else hnsw_ef_search
+        )
+        logger.debug(
+            "Configuração embeddings: provider=%s model=%s ollama=%s:%s llama_cpp_url=%s",
+            self.embedding_provider,
+            self.embedding_model,
+            self.ollama_host,
+            self.ollama_port,
+            self.llama_cpp_embed_url,
+        )
+
+    async def get_embedding(self, texto: str) -> Optional[List[float]]:
+        """Obtém embedding da query usando Ollama ou llama.cpp."""
+        if self.embedding_provider == "llama_cpp" or self.llama_cpp_embed_url:
+            return await self._get_embedding_llama_cpp(texto)
+        return await self._get_embedding_ollama(texto)
+
+    async def _get_embedding_ollama(self, texto: str) -> Optional[List[float]]:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"http://{self.ollama_host}:{self.ollama_port}/api/embeddings",
                     json={
-                        "model": self.model_name,
-                        "prompt": text
+                        "model": self.embedding_model,
+                        "prompt": texto
                     },
                     timeout=30.0
                 )
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("embedding")
-                else:
-                    logger.error(f"Erro ao obter embedding: {response.status_code}")
-                    return None
+                    embedding = self._extrair_embedding(data)
+                    return self._validar_embedding(embedding)
+                logger.error(f"Erro ao obter embedding: {response.status_code}")
+                return None
         except Exception as e:
             logger.error(f"Erro ao conectar com Ollama: {e}")
             return None
-            
-    async def index_verse(
-        self,
-        verse_id: str,
-        text: str,
-        metadata: Dict[str, Any]
-    ) -> bool:
-        """Indexa um versículo no Qdrant"""
-        if not self.client:
-            return False
-            
+
+    async def _get_embedding_llama_cpp(self, texto: str) -> Optional[List[float]]:
+        if not self.llama_cpp_embed_url:
+            logger.error("URL do llama.cpp não configurada para embeddings")
+            return None
+
+        usa_openai = self.llama_cpp_embed_url.rstrip("/").endswith("/v1/embeddings")
+        if usa_openai:
+            payload: Dict[str, Any] = {
+                "input": texto,
+                "encoding_format": "float"
+            }
+            if self.embedding_model:
+                payload["model"] = self.embedding_model
+        else:
+            payload = {"content": texto}
+            if self.embedding_model:
+                payload["model"] = self.embedding_model
+
         try:
-            embedding = await self.get_embedding(text)
-            if not embedding:
-                return False
-                
-            point = PointStruct(
-                id=verse_id,
-                vector=embedding,
-                payload={
-                    "content": text,
-                    **metadata
-                }
-            )
-            
-            self.client.upsert(
-                collection_name=self.collection_name,
-                points=[point]
-            )
-            return True
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.llama_cpp_embed_url,
+                    json=payload,
+                    timeout=30.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    embedding = self._extrair_embedding(data)
+                    return self._validar_embedding(embedding)
+                logger.error(
+                    f"Erro ao obter embedding no llama.cpp: {response.status_code}"
+                )
+                return None
         except Exception as e:
-            logger.error(f"Erro ao indexar versículo: {e}")
-            return False
-            
+            logger.error(f"Erro ao conectar com llama.cpp: {e}")
+            return None
+
+    def _extrair_embedding(self, data: Dict[str, Any]) -> Optional[List[float]]:
+        embedding = data.get("embedding")
+        if embedding:
+            return embedding
+        dados = data.get("data")
+        if isinstance(dados, list) and dados:
+            return dados[0].get("embedding")
+        return None
+
+    def _validar_embedding(
+        self,
+        embedding: Optional[List[float]]
+    ) -> Optional[List[float]]:
+        if not embedding:
+            logger.error("Embedding vazio retornado pelo modelo")
+            return None
+        if self.embedding_dim and len(embedding) != self.embedding_dim:
+            logger.error(
+                "Dimensão do embedding divergente do esperado: "
+                f"{len(embedding)} != {self.embedding_dim}"
+            )
+            return None
+        return embedding
+
+    def _formatar_vetor(self, embedding: List[float]) -> str:
+        # Formato aceito pelo pgvector: [1.0,2.0,3.0]
+        return "[" + ",".join(str(float(valor)) for valor in embedding) + "]"
+
+    def _calcular_ef_search(self, query: str, livro_abrev: Optional[str]) -> int:
+        palavras = [p for p in query.split() if p]
+        if len(palavras) > 6:
+            alvo = 256
+        elif livro_abrev:
+            alvo = 192
+        else:
+            alvo = 128
+        return max(self.hnsw_ef_search, alvo)
+
+    def _montar_sql_busca(self) -> str:
+        return (
+            "WITH ranked AS ("
+            "  SELECT "
+            "    v.id, "
+            "    v.embedding_2560_qwen3_4b <=> (:query_embedding)::vector AS dist "
+            "  FROM versiculo v "
+            "  WHERE v.versao_id = :versao_id "
+            "    AND v.embedding_2560_qwen3_4b IS NOT NULL "
+            "    AND ("
+            "      :livro_abrev IS NULL "
+            "      OR v.livro_id IN (SELECT id FROM livro WHERE abrev = :livro_abrev)"
+            "    ) "
+            "  ORDER BY v.embedding_2560_qwen3_4b <=> (:query_embedding)::vector "
+            "  LIMIT :k "
+            ") "
+            "SELECT "
+            "  v.id, v.texto, v.capitulo, v.numero, "
+            "  l.nome AS livro_nome, l.abrev AS livro_abrev, "
+            "  ver.nome AS versao_nome, ver.abrev AS versao_abrev, "
+            "  r.dist "
+            "FROM ranked r "
+            "JOIN versiculo v ON v.id = r.id "
+            "JOIN livro l ON l.id = v.livro_id "
+            "JOIN versao ver ON ver.id = v.versao_id "
+            "ORDER BY r.dist"
+        )
+
     async def search(
         self,
         query: str,
@@ -134,82 +192,105 @@ class SemanticSearch:
         versao_abrev: Optional[str] = None,
         livro_abrev: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Busca semântica por versículos similares"""
-        if not self.client:
+        """Busca semântica por versículos similares via pgvector."""
+        if not versao_abrev:
+            logger.error("Versão não informada para busca semântica")
             return []
-            
+
         try:
-            # Obter embedding da query
             embedding = await self.get_embedding(query)
             if not embedding:
                 return []
-                
-            # Construir filtro se necessário
-            filter_conditions = []
-            if versao_abrev:
-                filter_conditions.append(
-                    FieldCondition(
-                        key="metadata.versao_abrev",
-                        match=MatchValue(value=versao_abrev)
-                    )
+
+            vetor_consulta = self._formatar_vetor(embedding)
+
+            with Session(engine) as session:
+                versao_stmt = text(
+                    "SELECT id FROM versao "
+                    "WHERE abrev = :versao_abrev AND active = true"
                 )
-            if livro_abrev:
-                filter_conditions.append(
-                    FieldCondition(
-                        key="metadata.livro_abrev",
-                        match=MatchValue(value=livro_abrev)
+                versao_row = session.exec(
+                    versao_stmt.bindparams(versao_abrev=versao_abrev)
+                ).first()
+
+                if not versao_row:
+                    logger.error(
+                        f"Versão '{versao_abrev}' não encontrada para busca semântica"
                     )
+                    return []
+
+                versao_id = versao_row[0]
+
+                ef_search = self._calcular_ef_search(query, livro_abrev)
+                logger.debug(
+                    "Busca semântica: versao_abrev=%s versao_id=%s livro_abrev=%s "
+                    "k=%s ef_search=%s",
+                    versao_abrev,
+                    versao_id,
+                    livro_abrev,
+                    limit,
+                    ef_search,
                 )
-                
-            search_filter = Filter(must=filter_conditions) if filter_conditions else None
-            
-            # Realizar busca
-            results = self.client.search(
-                collection_name=self.collection_name,
-                query_vector=embedding,
-                limit=limit,
-                query_filter=search_filter
-            )
-            
-            # Formatar resultados
+                session.exec(
+                    text("SET hnsw.ef_search = :ef_search")
+                    .bindparams(ef_search=ef_search)
+                )
+
+                sql = self._montar_sql_busca()
+                params: Dict[str, Any] = {
+                    "versao_id": versao_id,
+                    "query_embedding": vetor_consulta,
+                    "k": limit,
+                    "livro_abrev": livro_abrev
+                }
+
+                rows = session.exec(text(sql).bindparams(**params)).all()
+                logger.debug(
+                    "Resultados (com filtro livro=%s): %s",
+                    livro_abrev,
+                    [row._mapping.get("id") for row in rows],
+                )
+                logger.debug(
+                    "Retorno SQL (com filtro livro=%s): %s",
+                    livro_abrev,
+                    [dict(row._mapping) for row in rows],
+                )
+                if livro_abrev and len(rows) < limit:
+                    logger.debug(
+                        "Fallback sem filtro de livro (retornou %s de %s)",
+                        len(rows),
+                        limit,
+                    )
+                    params["livro_abrev"] = None
+                    rows = session.exec(text(sql).bindparams(**params)).all()
+                    logger.debug(
+                        "Resultados (sem filtro livro): %s",
+                        [row._mapping for row in rows],
+                    )
+                    logger.debug(
+                        "Retorno SQL (sem filtro livro): %s",
+                        [dict(row._mapping) for row in rows],
+                    )
+
             formatted_results = []
-            for result in results:
-                metadata = result.payload.get("metadata", {})
+            for row in rows:
+                data = row._mapping
                 formatted_results.append({
-                    "score": result.score,
-                    "verse_id": result.id,
-                     "text": result.payload.get("content"),
-                    "livro_nome": metadata.get("livro_nome"),
-                    "livro_abrev": metadata.get("livro_abrev"),
-                    "capitulo": metadata.get("capitulo"),
-                    "numero": metadata.get("numero"),
-                    "versao_nome": metadata.get("versao_nome"),
-                    "versao_abrev": metadata.get("versao_abrev")
+                    "verse_id": data["id"],
+                    "text": data["texto"],
+                    "livro_nome": data["livro_nome"],
+                    "livro_abrev": data["livro_abrev"],
+                    "capitulo": data["capitulo"],
+                    "numero": data["numero"],
+                    "versao_nome": data["versao_nome"],
+                    "versao_abrev": data["versao_abrev"]
                 })
-                
+
             return formatted_results
-            
+
         except Exception as e:
             logger.error(f"Erro na busca semântica: {e}")
             return []
-            
-    async def index_all_verses(self, verses_data: List[Dict[str, Any]]) -> int:
-        """Indexa múltiplos versículos em lote"""
-        if not self.client:
-            return 0
-            
-        indexed_count = 0
-        for verse in verses_data:
-            success = await self.index_verse(
-                verse_id=verse["id"],
-                text=verse["text"],
-                metadata=verse["metadata"]
-            )
-            if success:
-                indexed_count += 1
-                
-        logger.info(f"Indexados {indexed_count} de {len(verses_data)} versículos")
-        return indexed_count
 
 # Instância global do serviço de busca semântica
 semantic_search_service = SemanticSearch()
