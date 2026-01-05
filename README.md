@@ -63,6 +63,13 @@ alembic history --verbose
 
 ## Notas de Lançamento
 
+### v0.4.1
+
+- **Busca Híbrida (RRF):** Implementação de novo algoritmo de busca que combina **Vetorial** (pgvector) e **Lexical** (Full-Text Search) usando *Reciprocal Rank Fusion* (RRF). Isso garante resultados semanticamente ricos sem perder a precisão de palavras-chave exatas.
+- **Novo Modelo de IA:** Adoção do modelo **Serafim 900m** (`PORTULAN/serafim-900m-portuguese-pt-sentence-encoder-ir`), estado da arte para recuperação de informação em português, substituindo configurações anteriores baseadas em modelos menores ou quantizados.
+- **Simplificação de Arquitetura:** Remoção de dependências externas complexas (Ollama, llama.cpp) em favor de uma stack puramente Python (`sentence-transformers`) + PostgreSQL. O modelo agora é executado nativamente na aplicação.
+- **Infraestrutura:** Otimização do Dockerfile com pré-download do modelo e limpeza de serviços desnecessários no docker-compose.
+
 ### v0.4.0
 
 - **Modo Strong Completo:** Implementação da visualização do texto original (Hebraico e Grego) com morfologia e definições do dicionário Strong.

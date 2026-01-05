@@ -29,43 +29,6 @@ def normalizar_texto(texto: str) -> str:
     return texto_sem_acentos.lower().strip()
 
 
-def search_by_keyword(query: str, versao_abrev: str, limit: int = 5) -> list[VersiculoSchema]:
-    """
-    Busca versículos por palavra-chave com normalização de texto.
-
-    Args:
-        query: Texto da query
-        versao_abrev: Abreviação da versão
-        limit: Número máximo de resultados
-
-    Returns:
-        Lista de VersiculoSchema
-    """
-    normalized_query = re.sub(r'[^\w\s]', '', normalizar_texto(query))
-    results = []
-    with Session(engine) as session:
-        stmt = select(Versiculo, Versao, Livro).where(
-            Versao.abrev == versao_abrev,
-            Versao.active == True,
-            Versiculo.versao_id == Versao.id,
-            Versiculo.livro_id == Livro.id
-        )
-        verses = session.exec(stmt).all()
-        for vers, ver, liv in verses:
-            normalized_texto = re.sub(r'[^\w\s]', '', normalizar_texto(vers.texto))
-            if normalized_query in normalized_texto:
-                results.append(VersiculoSchema(
-                    versao_abrev=ver.abrev,
-                    livro_abrev=liv.abrev,
-                    capitulo=vers.capitulo,
-                    versiculo=vers.numero,
-                    texto=vers.texto
-                ))
-                if len(results) >= limit:
-                    break
-    return results
-
-
 def criar_mapeamento_livros() -> dict[str, str]:
     """
     Cria mapeamento de nomes normalizados para abreviações dos livros.
@@ -370,23 +333,21 @@ async def captura_versiculos_biblia_por_busca(
     Raises:
         HTTPException: Se o formato da query for inválido ou erro na busca
     """
-    # Se ss=true, fazer busca híbrida (palavra-chave + semântica)
+    # Se ss=true, fazer busca híbrida (palavra-chave + semântica) via RRF
     if ss:
         try:
-            # Busca por palavra-chave primeiro
-            keyword_results = search_by_keyword(q, versao, 5)
-
-            # Busca semântica
-            semantic_results = await semantic_search_service.search(
+            # Busca Híbrida (Vetorial + Lexical com RRF)
+            # A função search agora encapsula toda a lógica de combinação e ranking
+            hybrid_results = semantic_search_service.search(
                 query=q,
-                limit=5,
-                versao_abrev=versao
+                versao_abrev=versao,
+                limit=5
             )
 
-            # Converter resultados semânticos para VersiculoSchema
-            semantic_schemas = []
-            for result in semantic_results:
-                semantic_schemas.append(VersiculoSchema(
+            # Converter resultados para VersiculoSchema
+            response_schemas = []
+            for result in hybrid_results:
+                response_schemas.append(VersiculoSchema(
                     versao_abrev=result.get("versao_abrev", versao),
                     livro_abrev=result.get("livro_abrev", ""),
                     capitulo=result.get("capitulo", 0),
@@ -394,16 +355,7 @@ async def captura_versiculos_biblia_por_busca(
                     texto=result.get("text") or "",
                 ))
 
-            # Criar conjunto de IDs para evitar duplicatas
-            keyword_ids = {(k.versao_abrev, k.livro_abrev, k.capitulo, k.versiculo) for k in keyword_results}
-
-            # Combinar resultados: palavra-chave primeiro, depois semântica sem duplicatas
-            combined = keyword_results + [
-                s for s in semantic_schemas
-                if (s.versao_abrev, s.livro_abrev, s.capitulo, s.versiculo) not in keyword_ids
-            ]
-
-            return combined[:5]
+            return response_schemas
 
         except Exception as e:
             raise HTTPException(

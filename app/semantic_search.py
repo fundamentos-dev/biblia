@@ -1,9 +1,9 @@
 import logging
-import httpx
 import os
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from sqlmodel import Session, text
+from sentence_transformers import SentenceTransformer
 
 from app.database import engine
 
@@ -13,284 +13,154 @@ load_dotenv(override=True)
 logger = logging.getLogger("api.semantic_search")
 
 class SemanticSearch:
-    def __init__(
-        self,
-        ollama_host: str = "ollama",
-        ollama_port: int = 11434,
-        embedding_model: str = "qwen3-embedding-4b-gguf-q8_0",
-        embedding_dim: Optional[int] = None,
-        embedding_provider: str = "ollama",
-        llama_cpp_embed_url: Optional[str] = None,
-        hnsw_ef_search: int = 64,
-    ):
-        self.ollama_host = os.getenv("OLLAMA_HOST", ollama_host)
-        self.ollama_port = int(os.getenv("OLLAMA_PORT", ollama_port))
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", embedding_model)
-        self.embedding_provider = os.getenv(
-            "EMBEDDING_PROVIDER",
-            embedding_provider
-        ).lower()
-        self.llama_cpp_embed_url = os.getenv(
-            "LLAMA_CPP_EMBED_URL",
-            llama_cpp_embed_url or ""
-        )
-        self.llama_cpp_embed_url = (
-            self.llama_cpp_embed_url if self.llama_cpp_embed_url else None
-        )
-
-        embedding_dim_env = os.getenv("EMBEDDING_DIM")
-        self.embedding_dim = (
-            int(embedding_dim_env) if embedding_dim_env else embedding_dim
-        )
-        hnsw_ef_search_env = os.getenv("HNSW_EF_SEARCH")
-        self.hnsw_ef_search = (
-            int(hnsw_ef_search_env) if hnsw_ef_search_env else hnsw_ef_search
-        )
-        logger.debug(
-            "Configuração embeddings: provider=%s model=%s ollama=%s:%s llama_cpp_url=%s",
-            self.embedding_provider,
-            self.embedding_model,
-            self.ollama_host,
-            self.ollama_port,
-            self.llama_cpp_embed_url,
-        )
-
-    async def get_embedding(self, texto: str) -> Optional[List[float]]:
-        """Obtém embedding da query usando Ollama ou llama.cpp."""
-        if self.embedding_provider == "llama_cpp" or self.llama_cpp_embed_url:
-            return await self._get_embedding_llama_cpp(texto)
-        return await self._get_embedding_ollama(texto)
-
-    async def _get_embedding_ollama(self, texto: str) -> Optional[List[float]]:
+    def __init__(self):
+        """
+        Inicializa o serviço de busca semântica com o modelo Serafim 900m.
+        
+        Modelo: PORTULAN/serafim-900m-portuguese-pt-sentence-encoder-ir
+        Uso: Gera embeddings de 1536 dimensões para busca vetorial.
+        """
+        self.model_name = "PORTULAN/serafim-900m-portuguese-pt-sentence-encoder-ir"
+        logger.info(f"Carregando modelo de embedding: {self.model_name}")
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"http://{self.ollama_host}:{self.ollama_port}/api/embeddings",
-                    json={
-                        "model": self.embedding_model,
-                        "prompt": texto
-                    },
-                    timeout=30.0
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    embedding = self._extrair_embedding(data)
-                    return self._validar_embedding(embedding)
-                logger.error(f"Erro ao obter embedding: {response.status_code}")
-                return None
+            # Carrega o modelo localmente (baixa na primeira execução)
+            self.model = SentenceTransformer(self.model_name)
+            logger.info("Modelo carregado com sucesso.")
         except Exception as e:
-            logger.error(f"Erro ao conectar com Ollama: {e}")
-            return None
+            logger.error(f"FATAL: Falha ao carregar modelo {self.model_name}: {e}")
+            raise e
 
-    async def _get_embedding_llama_cpp(self, texto: str) -> Optional[List[float]]:
-        if not self.llama_cpp_embed_url:
-            logger.error("URL do llama.cpp não configurada para embeddings")
-            return None
-
-        usa_openai = self.llama_cpp_embed_url.rstrip("/").endswith("/v1/embeddings")
-        if usa_openai:
-            payload: Dict[str, Any] = {
-                "input": texto,
-                "encoding_format": "float"
-            }
-            if self.embedding_model:
-                payload["model"] = self.embedding_model
-        else:
-            payload = {"content": texto}
-            if self.embedding_model:
-                payload["model"] = self.embedding_model
-
+    def _get_embedding(self, texto: str) -> List[float]:
+        """Gera o embedding para o texto usando o modelo carregado."""
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self.llama_cpp_embed_url,
-                    json=payload,
-                    timeout=30.0
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    embedding = self._extrair_embedding(data)
-                    return self._validar_embedding(embedding)
-                logger.error(
-                    f"Erro ao obter embedding no llama.cpp: {response.status_code}"
-                )
-                return None
+            # O modelo retorna um numpy array, convertemos para lista
+            embedding = self.model.encode(texto)
+            return embedding.tolist()
         except Exception as e:
-            logger.error(f"Erro ao conectar com llama.cpp: {e}")
-            return None
-
-    def _extrair_embedding(self, data: Dict[str, Any]) -> Optional[List[float]]:
-        embedding = data.get("embedding")
-        if embedding:
-            return embedding
-        dados = data.get("data")
-        if isinstance(dados, list) and dados:
-            return dados[0].get("embedding")
-        return None
-
-    def _validar_embedding(
-        self,
-        embedding: Optional[List[float]]
-    ) -> Optional[List[float]]:
-        if not embedding:
-            logger.error("Embedding vazio retornado pelo modelo")
-            return None
-        if self.embedding_dim and len(embedding) != self.embedding_dim:
-            logger.error(
-                "Dimensão do embedding divergente do esperado: "
-                f"{len(embedding)} != {self.embedding_dim}"
-            )
-            return None
-        return embedding
+            logger.error(f"Erro ao gerar embedding: {e}")
+            raise e
 
     def _formatar_vetor(self, embedding: List[float]) -> str:
-        # Formato aceito pelo pgvector: [1.0,2.0,3.0]
+        """Formata a lista de floats para string de vetor do PostgreSQL."""
         return "[" + ",".join(str(float(valor)) for valor in embedding) + "]"
 
-    def _calcular_ef_search(self, query: str, livro_abrev: Optional[str]) -> int:
-        palavras = [p for p in query.split() if p]
-        if len(palavras) > 6:
-            alvo = 256
-        elif livro_abrev:
-            alvo = 192
-        else:
-            alvo = 128
-        return max(self.hnsw_ef_search, alvo)
-
-    def _montar_sql_busca(self) -> str:
-        return (
-            "WITH ranked AS ("
-            "  SELECT "
-            "    v.id, "
-            "    v.embedding_2560_qwen3_4b <=> (:query_embedding)::vector AS dist "
-            "  FROM versiculo v "
-            "  WHERE v.versao_id = :versao_id "
-            "    AND v.embedding_2560_qwen3_4b IS NOT NULL "
-            "    AND ("
-            "      :livro_abrev IS NULL "
-            "      OR v.livro_id IN (SELECT id FROM livro WHERE abrev = :livro_abrev)"
-            "    ) "
-            "  ORDER BY v.embedding_2560_qwen3_4b <=> (:query_embedding)::vector "
-            "  LIMIT :k "
-            ") "
-            "SELECT "
-            "  v.id, v.texto, v.capitulo, v.numero, "
-            "  l.nome AS livro_nome, l.abrev AS livro_abrev, "
-            "  ver.nome AS versao_nome, ver.abrev AS versao_abrev, "
-            "  r.dist "
-            "FROM ranked r "
-            "JOIN versiculo v ON v.id = r.id "
-            "JOIN livro l ON l.id = v.livro_id "
-            "JOIN versao ver ON ver.id = v.versao_id "
-            "ORDER BY r.dist"
-        )
-
-    async def search(
+    def search(
         self,
         query: str,
+        versao_abrev: str,
+        livro_abrev: Optional[str] = None,
         limit: int = 5,
-        versao_abrev: Optional[str] = None,
-        livro_abrev: Optional[str] = None
+        rrf_k: int = 60
     ) -> List[Dict[str, Any]]:
-        """Busca semântica por versículos similares via pgvector."""
+        """
+        Realiza busca híbrida (Vetorial + Lexical) usando RRF (Reciprocal Rank Fusion).
+        
+        Lógica:
+        1. CTE vector_search: Busca os top 10 por similaridade de cosseno (pgvector).
+        2. CTE lexical_search: Busca os top 10 por full-text search (tsvector).
+        3. CTE combined_scores: Combina os rankings usando RRF: 
+           score = 1/(k + rank_vetorial) + 1/(k + rank_lexical).
+        4. Retorna os top 5 resultados finais ordenados pelo score combinado.
+        """
         if not versao_abrev:
             logger.error("Versão não informada para busca semântica")
             return []
 
         try:
-            embedding = await self.get_embedding(query)
-            if not embedding:
-                return []
-
+            # 1. Gerar embedding da query
+            embedding = self._get_embedding(query)
             vetor_consulta = self._formatar_vetor(embedding)
 
             with Session(engine) as session:
+                # Obter ID da versão
                 versao_stmt = text(
-                    "SELECT id FROM versao "
-                    "WHERE abrev = :versao_abrev AND active = true"
+                    "SELECT id FROM versao WHERE abrev = :versao_abrev AND active = true"
                 )
                 versao_row = session.exec(
                     versao_stmt.bindparams(versao_abrev=versao_abrev)
                 ).first()
 
                 if not versao_row:
-                    logger.error(
-                        f"Versão '{versao_abrev}' não encontrada para busca semântica"
-                    )
+                    logger.warning(f"Versão '{versao_abrev}' não encontrada.")
                     return []
 
                 versao_id = versao_row[0]
 
-                ef_search = self._calcular_ef_search(query, livro_abrev)
-                logger.debug(
-                    "Busca semântica: versao_abrev=%s versao_id=%s livro_abrev=%s "
-                    "k=%s ef_search=%s",
-                    versao_abrev,
-                    versao_id,
-                    livro_abrev,
-                    limit,
-                    ef_search,
+                # SQL da Busca Híbrida com RRF
+                sql = """
+                WITH vector_search AS (
+                    SELECT 
+                        v.id,
+                        ROW_NUMBER() OVER (ORDER BY v.embedding_1536_serafim_900m <=> (:query_embedding)::vector) as rank_vector
+                    FROM versiculo v
+                    WHERE v.versao_id = :versao_id
+                      AND (:livro_abrev IS NULL OR v.livro_id IN (SELECT id FROM livro WHERE abrev = :livro_abrev))
+                    ORDER BY v.embedding_1536_serafim_900m <=> (:query_embedding)::vector
+                    LIMIT 10
+                ),
+                lexical_search AS (
+                    SELECT 
+                        v.id,
+                        ROW_NUMBER() OVER (ORDER BY ts_rank(v.tsv, plainto_tsquery('portuguese', :query)) DESC) as rank_lexical
+                    FROM versiculo v
+                    WHERE v.versao_id = :versao_id
+                      AND (:livro_abrev IS NULL OR v.livro_id IN (SELECT id FROM livro WHERE abrev = :livro_abrev))
+                      AND v.tsv @@ plainto_tsquery('portuguese', :query)
+                    LIMIT 10
+                ),
+                combined_scores AS (
+                    SELECT 
+                        COALESCE(v.id, l.id) as id,
+                        (COALESCE(1.0 / (:rrf_k + v.rank_vector), 0.0) + 
+                         COALESCE(1.0 / (:rrf_k + l.rank_lexical), 0.0)) as score
+                    FROM vector_search v
+                    FULL OUTER JOIN lexical_search l ON v.id = l.id
                 )
-                session.exec(
-                    text("SET hnsw.ef_search = :ef_search")
-                    .bindparams(ef_search=ef_search)
-                )
+                SELECT 
+                    v.id, v.texto, v.capitulo, v.numero,
+                    l.nome AS livro_nome, l.abrev AS livro_abrev,
+                    ver.nome AS versao_nome, ver.abrev AS versao_abrev,
+                    c.score
+                FROM combined_scores c
+                JOIN versiculo v ON v.id = c.id
+                JOIN livro l ON l.id = v.livro_id
+                JOIN versao ver ON ver.id = v.versao_id
+                ORDER BY c.score DESC
+                LIMIT :final_limit
+                """
 
-                sql = self._montar_sql_busca()
-                params: Dict[str, Any] = {
+                params = {
                     "versao_id": versao_id,
                     "query_embedding": vetor_consulta,
-                    "k": limit,
-                    "livro_abrev": livro_abrev
+                    "query": query,
+                    "livro_abrev": livro_abrev,
+                    "rrf_k": rrf_k,
+                    "final_limit": limit
                 }
 
                 rows = session.exec(text(sql).bindparams(**params)).all()
-                logger.debug(
-                    "Resultados (com filtro livro=%s): %s",
-                    livro_abrev,
-                    [row._mapping.get("id") for row in rows],
-                )
-                logger.debug(
-                    "Retorno SQL (com filtro livro=%s): %s",
-                    livro_abrev,
-                    [dict(row._mapping) for row in rows],
-                )
-                if livro_abrev and len(rows) < limit:
-                    logger.debug(
-                        "Fallback sem filtro de livro (retornou %s de %s)",
-                        len(rows),
-                        limit,
-                    )
-                    params["livro_abrev"] = None
-                    rows = session.exec(text(sql).bindparams(**params)).all()
-                    logger.debug(
-                        "Resultados (sem filtro livro): %s",
-                        [row._mapping for row in rows],
-                    )
-                    logger.debug(
-                        "Retorno SQL (sem filtro livro): %s",
-                        [dict(row._mapping) for row in rows],
-                    )
+                
+                # Formatar resultados
+                formatted_results = []
+                for row in rows:
+                    data = row._mapping
+                    formatted_results.append({
+                        "verse_id": data["id"],
+                        "text": data["texto"],
+                        "livro_nome": data["livro_nome"],
+                        "livro_abrev": data["livro_abrev"],
+                        "capitulo": data["capitulo"],
+                        "numero": data["numero"],
+                        "versao_nome": data["versao_nome"],
+                        "versao_abrev": data["versao_abrev"],
+                        "score": data["score"]
+                    })
 
-            formatted_results = []
-            for row in rows:
-                data = row._mapping
-                formatted_results.append({
-                    "verse_id": data["id"],
-                    "text": data["texto"],
-                    "livro_nome": data["livro_nome"],
-                    "livro_abrev": data["livro_abrev"],
-                    "capitulo": data["capitulo"],
-                    "numero": data["numero"],
-                    "versao_nome": data["versao_nome"],
-                    "versao_abrev": data["versao_abrev"]
-                })
-
-            return formatted_results
+                return formatted_results
 
         except Exception as e:
-            logger.error(f"Erro na busca semântica: {e}")
+            logger.error(f"Erro na busca híbrida: {e}")
             return []
 
-# Instância global do serviço de busca semântica
+# Instância global
 semantic_search_service = SemanticSearch()

@@ -8,6 +8,6 @@ python-multipart==0.0.20
 httpx==0.25.2
 python-dotenv==1.0.1
 pgvector==0.2.5
-mlx-embeddings
+sentence-transformers
 numpy
 tqdm
