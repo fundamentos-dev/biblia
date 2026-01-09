@@ -45,7 +45,7 @@
                 <div class="flex items-center space-x-2">
                     <span class="text-gray-500 dark:text-gray-600" aria-hidden="true">$</span>
                     <h1 class="text-lg font-semibold text-gray-800 dark:text-green-400">Bíblia SH</h1>
-                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.4.0</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.5.0</span>
                 </div>
 
                 <!-- Navigation -->
@@ -326,7 +326,10 @@
                                                 <div>
                                                     <div class="flex items-center justify-between mb-2">
                                                         <span class="text-2xl font-bold text-gray-800 dark:text-green-400" x-text="strongDefinition.lemma"></span>
-                                                        <span class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-300" x-text="strongDefinition.strong"></span>
+                                                        <button @click="searchForStrong(strongDefinition.strong)" 
+                                                                class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900 text-gray-600 dark:text-gray-300 hover:text-green-700 dark:hover:text-green-300 rounded transition-colors" 
+                                                                title="Ver as incidências desse termo"
+                                                                x-text="strongDefinition.strong"></button>
                                                     </div>
                                                     
                                                     <div class="mb-3">
@@ -513,6 +516,10 @@ document.addEventListener('alpine:init', () => {
             } finally {
                 this.loadingDefinition = false;
             }
+        },
+
+        searchForStrong(code) {
+            window.location.href = `/?q=${code}&lema=true`;
         },
 
         async fetchVersions() {

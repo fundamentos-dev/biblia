@@ -63,6 +63,12 @@ alembic history --verbose
 
 ## Notas de Lançamento
 
+### v0.5.0
+
+- **Busca por Lema (Strong):** Nova funcionalidade que permite buscar todas as ocorrências de uma palavra original (Hebraico/Grego) na Bíblia clicando diretamente em seu código no modal de definições.
+- **Interface de Busca Aprimorada:** Suporte visual e lógico para pesquisas por lema (`lema=true`), diferenciando-as claramente das buscas semânticas e por referência.
+- **Experiência de Navegação:** Fluxo contínuo entre leitura, definição e busca aprofundada de termos originais.
+
 ### v0.4.1
 
 - **Busca Híbrida (RRF):** Implementação de novo algoritmo de busca que combina **Vetorial** (pgvector) e **Lexical** (Full-Text Search) usando *Reciprocal Rank Fusion* (RRF). Isso garante resultados semanticamente ricos sem perder a precisão de palavras-chave exatas.

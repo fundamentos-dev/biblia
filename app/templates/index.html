@@ -15,7 +15,7 @@
                 <div class="flex items-center space-x-2">
                     <span class="text-gray-500 dark:text-gray-600" aria-hidden="true">$</span>
                     <h1 class="text-lg font-semibold text-gray-800 dark:text-green-400">Bíblia SH</h1>
-                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.4.0</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-600">v0.5.0</span>
                 </div>
 
                 <!-- Navigation -->
@@ -394,7 +394,10 @@
                                                 <div>
                                                     <div class="flex items-center justify-between mb-2">
                                                         <span class="text-2xl font-bold text-gray-800 dark:text-green-400" x-text="strongDefinition.lemma"></span>
-                                                        <span class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-300" x-text="strongDefinition.strong"></span>
+                                                        <button @click="searchForStrong(strongDefinition.strong)" 
+                                                                class="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-green-100 dark:hover:bg-green-900 text-gray-600 dark:text-gray-300 hover:text-green-700 dark:hover:text-green-300 rounded transition-colors" 
+                                                                title="Ver as incidências desse termo"
+                                                                x-text="strongDefinition.strong"></button>
                                                     </div>
                                                     
                                                     <div class="mb-3">
@@ -469,6 +472,7 @@ document.addEventListener('alpine:init', () => {
         copiedIndex: null,
         shareCopied: false,
         semanticOverride: false,
+        isLemaSearch: false,
         abortController: null,
 
         // Sidebar state
@@ -567,6 +571,15 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
+        searchForStrong(code) {
+            // Se já estiver na página de busca, apenas atualiza a busca
+            this.strongsModalOpen = false;
+            this.searchQuery = code;
+            this.semanticOverride = false;
+            this.isLemaSearch = true; // Flag to indicate this is a lemma search
+            this.executeSearch();
+        },
+        
         // Validação de formato de referência bíblica
         validateQuery(query) {
             if (!query.trim()) return false;
@@ -600,6 +613,10 @@ document.addEventListener('alpine:init', () => {
             clearTimeout(this.debounceTimer);
             this.errorMessage = '';
             this.semanticOverride = false;
+            // Se o usuário digita algo novo, provavelmente não é mais uma busca por lema exato vinda do clique
+            // Mas vamos deixar ele decidir. Se ele digitar um código Strong manualmente, talvez queira lema.
+            // Por simplicidade, reseta a flag.
+            this.isLemaSearch = false; 
 
             if (!this.searchQuery.trim()) {
                 this.statusMessage = '';
@@ -803,9 +820,11 @@ document.addEventListener('alpine:init', () => {
             this.abortController = new AbortController();
             const signal = this.abortController.signal;
 
-            const isSemanticSearch = this.shouldUseSemanticSearch();
+            // Se for lema search, forçamos semantic search para false
+            const isSemanticSearch = this.shouldUseSemanticSearch() && !this.isLemaSearch;
             
-            if (!isSemanticSearch && !this.validateQuery(this.searchQuery)) {
+            // Se for busca por lema, bypass validação de formato bíblico padrão
+            if (!this.isLemaSearch && !isSemanticSearch && !this.validateQuery(this.searchQuery)) {
                 this.errorMessage = 'Formato inválido. Use: Livro Capítulo:Versículo ou texto livre para busca semântica';
                 return;
             }
@@ -813,7 +832,13 @@ document.addEventListener('alpine:init', () => {
             this.isLoading = true;
             this.hasSearched = true;
             this.errorMessage = '';
-            this.statusMessage = isSemanticSearch ? 'Realizando busca semântica...' : 'Buscando...';
+            
+            if (this.isLemaSearch) {
+                 this.statusMessage = 'Buscando ocorrências do lema...';
+            } else {
+                 this.statusMessage = isSemanticSearch ? 'Realizando busca semântica...' : 'Buscando...';
+            }
+            
             this.statusClass = 'text-gray-600 dark:text-gray-400';
             this.shareCopied = false;
             
@@ -827,6 +852,10 @@ document.addEventListener('alpine:init', () => {
                 if (isSemanticSearch) {
                     params.append('ss', 'true');
                 }
+                
+                if (this.isLemaSearch) {
+                    params.append('lema', 'true');
+                }
 
                 // Atualizar URL com a última busca
                 const url = new URL(window.location.href);
@@ -836,6 +865,13 @@ document.addEventListener('alpine:init', () => {
                 } else {
                     url.searchParams.delete('ss');
                 }
+                
+                if (this.isLemaSearch) {
+                    url.searchParams.set('lema', 'true');
+                } else {
+                    url.searchParams.delete('lema');
+                }
+                
                 window.history.replaceState({}, '', url);
                 
                 const response = await fetch(`/api/v1/biblia/verse?${params}`, { signal });
@@ -850,7 +886,10 @@ document.addEventListener('alpine:init', () => {
                 this.groupedResults = this.groupVerses(this.results);
                 
                 if (this.results.length > 0) {
-                    const searchType = isSemanticSearch ? 'semântica' : 'referência';
+                    let searchType = 'referência';
+                    if (this.isLemaSearch) searchType = 'lema (Strong)';
+                    else if (isSemanticSearch) searchType = 'semântica';
+                    
                     this.statusMessage = `${this.results.length} versículo(s) encontrado(s) via busca ${searchType}`;
                     this.statusClass = 'text-green-600 dark:text-green-500';
                 } else {
@@ -885,8 +924,13 @@ document.addEventListener('alpine:init', () => {
 
             const params = new URLSearchParams();
             params.set('q', this.searchQuery);
-            if (this.shouldUseSemanticSearch()) {
+            
+            if (this.shouldUseSemanticSearch() && !this.isLemaSearch) {
                 params.set('ss', 'true');
+            }
+            
+            if (this.isLemaSearch) {
+                params.set('lema', 'true');
             }
 
             const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
@@ -977,10 +1021,12 @@ document.addEventListener('alpine:init', () => {
             const params = new URLSearchParams(window.location.search);
             const query = params.get('q');
             const semantic = params.get('ss') === 'true';
+            const lema = params.get('lema') === 'true';
 
             if (query) {
                 this.searchQuery = query;
                 this.semanticOverride = semantic;
+                this.isLemaSearch = lema;
                 setTimeout(() => {
                     this.executeSearch();
                 }, 50);

@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from app.database import engine
 from app.models.Biblia import Livro, LivroCapituloNumeroVersiculos, Versao, Versiculo, Testamento
+from app.models.Strongs import OriginalToken
 from app.schemas.biblia import VersiculoSchema, ListaLeituraResponse, ListaLeituraSchema
 from app.semantic_search import semantic_search_service
 
@@ -317,22 +318,57 @@ def capturar_referencia_versiculos(
 async def captura_versiculos_biblia_por_busca(
     q: Annotated[str, "Query de busca ex.: 1Pe 2:22 ou texto livre para busca semântica"],
     versao: str = "ARA",
-    ss: bool = Query(False, description="Ativar busca semântica")
+    ss: bool = Query(False, description="Ativar busca semântica"),
+    lema: bool = Query(False, description="Buscar por código Strong (lema)")
 ) -> list[VersiculoSchema]:
     """
-    Busca versículos bíblicos baseado em referências textuais ou busca semântica.
+    Busca versículos bíblicos baseado em referências textuais, busca semântica ou código Strong.
 
     Args:
-        q: String com referências bíblicas (ex: "João 3:16") ou texto livre para busca semântica
+        q: String com referências, texto livre ou código Strong
         versao: Versão da bíblia (padrão: ARA)
         ss: Ativar busca semântica (padrão: False)
+        lema: Ativar busca por código Strong (padrão: False)
 
     Returns:
         list[VersiculoSchema]: Lista de versículos encontrados
-
-    Raises:
-        HTTPException: Se o formato da query for inválido ou erro na busca
     """
+    # Se lema=true, buscar ocorrências do código Strong
+    if lema:
+        try:
+            with Session(engine) as session:
+                # Busca versículos que contêm tokens com o código Strong especificado
+                stmt = (
+                    select(Versiculo, Livro, Versao)
+                    .join(OriginalToken, 
+                          (OriginalToken.livro_id == Versiculo.livro_id) & 
+                          (OriginalToken.capitulo == Versiculo.capitulo) & 
+                          (OriginalToken.versiculo == Versiculo.numero))
+                    .join(Livro, Livro.id == Versiculo.livro_id)
+                    .join(Versao, Versao.id == Versiculo.versao_id)
+                    .where(OriginalToken.strong == q)
+                    .where(Versao.abrev == versao)
+                    .where(Versao.active == True)
+                    .distinct()
+                )
+                
+                results = session.exec(stmt).all()
+                
+                response_schemas = []
+                for vers, liv, ver in results:
+                    response_schemas.append(VersiculoSchema(
+                        versao_abrev=ver.abrev,
+                        livro_abrev=liv.abrev,
+                        capitulo=vers.capitulo,
+                        versiculo=vers.numero,
+                        texto=vers.texto,
+                    ))
+                
+                return response_schemas
+                
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erro na busca por lema: {str(e)}")
+
     # Se ss=true, fazer busca híbrida (palavra-chave + semântica) via RRF
     if ss:
         try:
